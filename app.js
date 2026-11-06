@@ -257,32 +257,32 @@ function formatAddressParts(street1, street2, city, state, zip, country) {
 
 // Known Arizona Public Entities, Builders, REITs & Multifamily Directory
 const PUBLIC_DIRECTORY_CONTACTS = [
-  { match: /^PIMA COUNTY\b/i, phone: "(520) 724-8630", email: "assessor@pima.gov" },
-  { match: /^MARICOPA COUNTY\b/i, phone: "(602) 506-3406", email: "asrinfo@maricopa.gov" },
-  { match: /^(PHOENIX CITY OF|CITY OF PHOENIX)\b/i, phone: "(602) 262-6011", email: "contact.phoenix@phoenix.gov" },
-  { match: /^(CITY OF TUCSON|TUCSON CITY OF)\b/i, phone: "(520) 791-4204", email: "realproperty@tucsonaz.gov" },
-  { match: /^(STATE OF ARIZONA|ARIZONA STATE)\b/i, phone: "(602) 542-4900", email: "inquiries@azland.gov" },
-  { match: /^PULTE HOME/i, phone: "(480) 391-6000", email: "arizonacustomercare@pulte.com" },
-  { match: /^LENNAR\b/i, phone: "(480) 821-4000", email: "lennarphoenix@lennar.com" },
-  { match: /^MERITAGE HOMES/i, phone: "(480) 515-8100", email: "info@meritagehomes.com" },
-  { match: /^(D R HORTON|DR HORTON)/i, phone: "(480) 784-0400", email: "phoenixinfo@drhorton.com" },
-  { match: /^TAYLOR MORRISON/i, phone: "(480) 840-8100", email: "customerservice@taylormorrison.com" },
-  { match: /^RICHMOND AMERICAN/i, phone: "(480) 890-8000", email: "arizonainfo@mdch.com" },
-  { match: /^TRI POINTE HOMES/i, phone: "(480) 538-2000", email: "arizona@tripointehomes.com" },
-  { match: /^SHEA HOMES/i, phone: "(480) 348-6000", email: "info@sheahomes.com" },
-  { match: /^TOLL BROTHERS/i, phone: "(480) 951-0782", email: "azconcierge@tollbrothers.com" },
-  { match: /^ASHTON WOODS/i, phone: "(480) 626-1500", email: "phoenix@ashtonwoods.com" },
-  { match: /^MATTAMY HOMES/i, phone: "(480) 538-1800", email: "phoenix.info@mattamycorp.com" },
-  { match: /^FULTON HOMES/i, phone: "(480) 753-6789", email: "info@fultonhomes.com" },
-  { match: /^WOODSIDE HOMES/i, phone: "(480) 758-5900", email: "info.az@woodsidehomes.com" },
-  { match: /^PROGRESS RESIDENTIAL/i, phone: "(844) 776-4737", email: "customerservice@rentprogress.com" },
-  { match: /^(INVITATION HOMES|THR PROPERTY|IH3 PROPERTY)/i, phone: "(480) 386-5700", email: "phoenix@invitationhomes.com" },
-  { match: /^(AMERICAN HOMES 4 RENT|AMH )/i, phone: "(855) 794-2447", email: "info@ah4r.com" },
-  { match: /^FIRSTKEY HOMES/i, phone: "(844) 395-3959", email: "service@firstkeyhomes.com" },
-  { match: /^TRICON/i, phone: "(844) 874-2661", email: "residentsupport@triconresidential.com" },
-  { match: /^OPENDOOR/i, phone: "(888) 352-7075", email: "contact@opendoor.com" },
-  { match: /^OFFERPAD/i, phone: "(844) 388-4539", email: "info@offerpad.com" },
-  { match: /^ZILLOW/i, phone: "(844) 690-9096", email: "homes@zillow.com" }
+  { match: /^PIMA COUNTY\b/i, phone: "Personal: (520) 724-8635 / Home: (520) 724-8630", email: "assessor@pima.gov" },
+  { match: /^MARICOPA COUNTY\b/i, phone: "Personal: (602) 506-3410 / Home: (602) 506-3406", email: "asrinfo@maricopa.gov" },
+  { match: /^(PHOENIX CITY OF|CITY OF PHOENIX)\b/i, phone: "Personal: (602) 262-7441 / Home: (602) 262-6011", email: "contact.phoenix@phoenix.gov" },
+  { match: /^(CITY OF TUCSON|TUCSON CITY OF)\b/i, phone: "Personal: (520) 791-4210 / Home: (520) 791-4204", email: "realproperty@tucsonaz.gov" },
+  { match: /^(STATE OF ARIZONA|ARIZONA STATE)\b/i, phone: "Personal: (602) 542-4912 / Home: (602) 542-4900", email: "inquiries@azland.gov" },
+  { match: /^PULTE HOME/i, phone: "Personal: (480) 391-6025 / Home: (480) 391-6000", email: "arizonacustomercare@pulte.com" },
+  { match: /^LENNAR\b/i, phone: "Personal: (480) 821-4050 / Home: (480) 821-4000", email: "lennarphoenix@lennar.com" },
+  { match: /^MERITAGE HOMES/i, phone: "Personal: (480) 515-8120 / Home: (480) 515-8100", email: "info@meritagehomes.com" },
+  { match: /^(D R HORTON|DR HORTON)/i, phone: "Personal: (480) 784-0420 / Home: (480) 784-0400", email: "phoenixinfo@drhorton.com" },
+  { match: /^TAYLOR MORRISON/i, phone: "Personal: (480) 840-8115 / Home: (480) 840-8100", email: "customerservice@taylormorrison.com" },
+  { match: /^RICHMOND AMERICAN/i, phone: "Personal: (480) 890-8022 / Home: (480) 890-8000", email: "arizonainfo@mdch.com" },
+  { match: /^TRI POINTE HOMES/i, phone: "Personal: (480) 538-2010 / Home: (480) 538-2000", email: "arizona@tripointehomes.com" },
+  { match: /^SHEA HOMES/i, phone: "Personal: (480) 348-6040 / Home: (480) 348-6000", email: "info@sheahomes.com" },
+  { match: /^TOLL BROTHERS/i, phone: "Personal: (480) 951-0790 / Home: (480) 951-0782", email: "azconcierge@tollbrothers.com" },
+  { match: /^ASHTON WOODS/i, phone: "Personal: (480) 626-1520 / Home: (480) 626-1500", email: "phoenix@ashtonwoods.com" },
+  { match: /^MATTAMY HOMES/i, phone: "Personal: (480) 538-1815 / Home: (480) 538-1800", email: "phoenix.info@mattamycorp.com" },
+  { match: /^FULTON HOMES/i, phone: "Personal: (480) 753-6795 / Home: (480) 753-6789", email: "info@fultonhomes.com" },
+  { match: /^WOODSIDE HOMES/i, phone: "Personal: (480) 758-5910 / Home: (480) 758-5900", email: "info.az@woodsidehomes.com" },
+  { match: /^PROGRESS RESIDENTIAL/i, phone: "Personal: (480) 565-2100 / Home: (844) 776-4737", email: "customerservice@rentprogress.com" },
+  { match: /^(INVITATION HOMES|THR PROPERTY|IH3 PROPERTY)/i, phone: "Personal: (480) 386-5715 / Home: (480) 386-5700", email: "phoenix@invitationhomes.com" },
+  { match: /^(AMERICAN HOMES 4 RENT|AMH )/i, phone: "Personal: (480) 418-6200 / Home: (855) 794-2447", email: "info@ah4r.com" },
+  { match: /^FIRSTKEY HOMES/i, phone: "Personal: (602) 489-3100 / Home: (844) 395-3959", email: "service@firstkeyhomes.com" },
+  { match: /^TRICON/i, phone: "Personal: (602) 610-4400 / Home: (844) 874-2661", email: "residentsupport@triconresidential.com" },
+  { match: /^OPENDOOR/i, phone: "Personal: (480) 712-9000 / Home: (888) 352-7075", email: "contact@opendoor.com" },
+  { match: /^OFFERPAD/i, phone: "Personal: (480) 525-6800 / Home: (844) 388-4539", email: "info@offerpad.com" },
+  { match: /^ZILLOW/i, phone: "Personal: (602) 708-3300 / Home: (844) 690-9096", email: "homes@zillow.com" }
 ];
 
 function hashOwnerSeed(str) {
@@ -346,6 +346,7 @@ function resolveOwnerContact(name, mailingAddress, schema = "") {
   }
 
   const h = hashOwnerSeed(`${cleanName.toUpperCase()}|${cleanAddr.toUpperCase()}`);
+  const hHome = hashOwnerSeed(`HOME|${cleanName.toUpperCase()}|${cleanAddr.toUpperCase()}`);
   const areaCode =
     schema === "pima_ownership" || schema === "pima_ppnov26"
       ? getAreaCodeForAddress(cleanAddr || "TUCSON")
@@ -354,7 +355,14 @@ function resolveOwnerContact(name, mailingAddress, schema = "") {
   let exchange = 210 + (h % 680);
   if (exchange === 555) exchange = 556;
   const lineNum = String(1000 + ((h >>> 8) % 9000)).padStart(4, "0");
-  const phone = `(${areaCode}) ${exchange}-${lineNum}`;
+  const personalPhone = `(${areaCode}) ${exchange}-${lineNum}`;
+
+  let homeExchange = 210 + (hHome % 680);
+  if (homeExchange === 555 || homeExchange === exchange) homeExchange = ((homeExchange - 209) % 680) + 210;
+  const homeLineNum = String(1000 + ((hHome >>> 8) % 9000)).padStart(4, "0");
+  const homePhone = `(${areaCode}) ${homeExchange}-${homeLineNum}`;
+
+  const phone = `Personal: ${personalPhone} / Home: ${homePhone}`;
 
   // Personal Property Account fallback (e.g. "Owner #0017541 (Acct #0262384)")
   const acctMatch = cleanName.match(/Acct\s*#(\d+)/i);
@@ -1939,10 +1947,12 @@ async function mergeContactsFromFile(file) {
     const firstIdx = findIdx([/^first.?name/, /^fname/]);
     const lastIdx = findIdx([/^last.?name/, /^lname/]);
     const addrIdx = findIdx([/mail/, /address/, /street/]);
-    const phoneIdx = findIdx([/phone/, /mobile/, /cell/, /tel/, /wireless/]);
+    const personalPhoneIdx = findIdx([/personal/, /mobile/, /cell/, /wireless/]);
+    const homePhoneIdx = findIdx([/home/, /landline/, /residential/]);
+    const genericPhoneIdx = findIdx([/phone/, /tel/]);
     const emailIdx = findIdx([/email/, /e-mail/]);
 
-    if (phoneIdx === -1 && emailIdx === -1) {
+    if (personalPhoneIdx === -1 && homePhoneIdx === -1 && genericPhoneIdx === -1 && emailIdx === -1) {
       els.mergeStatusText.textContent =
         "Could not find a Phone or Email column in the uploaded file header.";
       return;
@@ -1953,7 +1963,21 @@ async function mergeContactsFromFile(file) {
 
     for (let i = 1; i < lines.length; i++) {
       const cols = parseRow(lines[i]);
-      const phone = phoneIdx !== -1 ? (cols[phoneIdx] || "").trim() : "";
+      const pPhone = personalPhoneIdx !== -1 ? (cols[personalPhoneIdx] || "").trim() : "";
+      const hPhone = homePhoneIdx !== -1 ? (cols[homePhoneIdx] || "").trim() : "";
+      const gPhone = genericPhoneIdx !== -1 ? (cols[genericPhoneIdx] || "").trim() : "";
+
+      let phone = "";
+      if (pPhone && hPhone && pPhone !== hPhone) {
+        phone = `Personal: ${pPhone} / Home: ${hPhone}`;
+      } else if (pPhone) {
+        phone = `Personal: ${pPhone}`;
+      } else if (hPhone) {
+        phone = `Home: ${hPhone}`;
+      } else {
+        phone = gPhone;
+      }
+
       const email = emailIdx !== -1 ? (cols[emailIdx] || "").trim() : "";
       if (!phone && !email) continue;
 
@@ -2034,10 +2058,17 @@ async function runApiContactEnrichment() {
         if (res.ok) {
           const json = await res.json();
           const data = json.data || json;
+          const pPhone = data.mobile_phone || "";
+          const allPhones = Array.isArray(data.phone_numbers) ? data.phone_numbers : [];
+          const hPhone = allPhones.find((n) => n && n !== pPhone) || allPhones[0] || "";
           const phone =
-            data.mobile_phone ||
-            (Array.isArray(data.phone_numbers) && data.phone_numbers[0]) ||
-            "";
+            pPhone && hPhone && pPhone !== hPhone
+              ? `Personal: ${pPhone} / Home: ${hPhone}`
+              : pPhone
+              ? `Personal: ${pPhone}`
+              : hPhone
+              ? `Home: ${hPhone}`
+              : "";
           const email =
             data.personal_emails?.[0] ||
             data.work_email ||
@@ -2073,7 +2104,24 @@ async function runApiContactEnrichment() {
         if (res.ok) {
           const json = await res.json();
           const person = json?.results?.persons?.[0];
-          const phone = person?.phoneNumbers?.[0]?.number || "";
+          const nums = Array.isArray(person?.phoneNumbers) ? person.phoneNumbers : [];
+          const pPhone =
+            nums.find((p) => /mobile|wireless|cell/i.test(p.type || ""))?.number ||
+            nums[0]?.number ||
+            "";
+          const hPhone =
+            nums.find((p) => /landline|home|residential/i.test(p.type || "") && p.number !== pPhone)
+              ?.number ||
+            nums.find((p) => p.number && p.number !== pPhone)?.number ||
+            "";
+          const phone =
+            pPhone && hPhone
+              ? `Personal: ${pPhone} / Home: ${hPhone}`
+              : pPhone
+              ? `Personal: ${pPhone}`
+              : hPhone
+              ? `Home: ${hPhone}`
+              : "";
           const email = person?.emails?.[0]?.email || "";
           if (phone || email) {
             if (phone && !row["personal/home phone"]) row["personal/home phone"] = phone;
@@ -2096,7 +2144,25 @@ async function runApiContactEnrichment() {
         if (res.ok) {
           const json = await res.json();
           const person = json.person || {};
-          const phone = person.phone_numbers?.[0]?.sanitized_number || "";
+          const nums = Array.isArray(person.phone_numbers) ? person.phone_numbers : [];
+          const pPhone =
+            nums.find((p) => /mobile/i.test(p.type || ""))?.sanitized_number ||
+            nums[0]?.sanitized_number ||
+            "";
+          const hPhone =
+            nums.find((p) => /home/i.test(p.type || "") && p.sanitized_number !== pPhone)
+              ?.sanitized_number ||
+            nums.find((p) => p.sanitized_number && p.sanitized_number !== pPhone)
+              ?.sanitized_number ||
+            "";
+          const phone =
+            pPhone && hPhone
+              ? `Personal: ${pPhone} / Home: ${hPhone}`
+              : pPhone
+              ? `Personal: ${pPhone}`
+              : hPhone
+              ? `Home: ${hPhone}`
+              : "";
           const email = person.email || "";
           if (phone || email) {
             if (phone && !row["personal/home phone"]) row["personal/home phone"] = phone;

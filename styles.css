@@ -720,7 +720,7 @@ body {
   border-right: 1px solid var(--border-subtle);
   padding: 7px 10px;
   text-align: left;
-  max-width: 340px;
+  max-width: 420px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
