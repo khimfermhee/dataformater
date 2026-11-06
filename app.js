@@ -1065,22 +1065,122 @@ function renderTableBody(visibleCols, filteredRows) {
   els.nextPageBtn.disabled = state.currentPage >= totalPages;
 }
 
-function buildContactLookupUrl(rowObj, colKey) {
-  const name = (rowObj?.Name || "").trim();
-  const addr = (rowObj?.["Mailing address"] || "").trim();
-  const targetTerm = colKey === "email" ? "email contact" : "phone number contact";
-  const q = [name, addr, targetTerm].filter(Boolean).join(" ");
-  return `https://www.google.com/search?q=${encodeURIComponent(q)}`;
+function buildRealPeopleSearchUrls(rowObj) {
+  const rawName = String(rowObj?.Name || "").trim();
+  const rawAddr = String(rowObj?.["Mailing address"] || "").trim();
+
+  // Parse street, city, state, zip from Mailing address
+  const addrParts = rawAddr.split(",").map((s) => s.trim()).filter(Boolean);
+  const street = addrParts[0] || "";
+  let city = "";
+  let state = "AZ";
+  let zip = "";
+
+  if (addrParts.length >= 3) {
+    city = addrParts[1];
+    const stZip = addrParts[2].match(/^([A-Z]{2})\s*(\d{5})?/i);
+    if (stZip) {
+      state = stZip[1].toUpperCase();
+      zip = stZip[2] || "";
+    }
+  } else if (addrParts.length === 2) {
+    // e.g. "TUCSON AZ 85705-3019" or "TUCSON, AZ"
+    const m = addrParts[1].match(/^(.+?)\s+([A-Z]{2})(?:\s+(\d{5}))?/i);
+    if (m) {
+      city = m[1].trim();
+      state = m[2].toUpperCase();
+      zip = m[3] || "";
+    } else {
+      city = addrParts[1];
+    }
+  }
+
+  const slugify = (s) =>
+    String(s || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+  // Clean owner name and convert Assessor "LASTNAME FIRSTNAME MI" -> "Firstname Lastname"
+  const primaryOwner = rawName
+    .replace(/\(Acct\s*#[^)]+\)/gi, "")
+    .replace(/\[Parcel\s*[^\]]+\]/gi, "")
+    .split("/")[0]
+    .split("&")[0]
+    .trim();
+
+  const isEntity = /\b(LLC|INC|CORP|LP|LLP|COMPANY|PROPERTIES|HOLDINGS|INVESTMENTS|ENTERPRISES|PARTNERS|APARTMENTS|APTS|MULTIFAMILY|COUNTY|CITY OF|STATE OF|HOMES|DEVELOPMENT)\b/i.test(
+    primaryOwner
+  );
+
+  const tokens = primaryOwner
+    .replace(/[^A-Za-z\s]/g, " ")
+    .split(/\s+/)
+    .filter(
+      (w) =>
+        w.length > 1 &&
+        !/^(TRUST|TR|LIVING|FAMILY|REVOCABLE|IRREVOCABLE|DATED|DTD|THE|AND|ETAL|JR|SR|II|III|IV|JT|RS)$/i.test(w)
+    );
+
+  let personSearchName = primaryOwner;
+  if (!isEntity && tokens.length >= 2) {
+    // Assessor format: LASTNAME FIRSTNAME [MIDDLE]
+    personSearchName = `${tokens[1]} ${tokens[0]}`;
+  } else if (!isEntity && tokens.length === 1) {
+    personSearchName = tokens[0];
+  }
+
+  const nameSlug = slugify(personSearchName);
+  const cityStateSlug = slugify(`${city} ${state}`);
+  const streetSlug = slugify(street.replace(/\b(STE|SUITE|APT|UNIT|#)\s*\S+$/i, ""));
+  const isPoBox = /^P\.?O\.?\s*BOX\b/i.test(street);
+
+  const fastPeopleUrl =
+    !isEntity && tokens.length >= 2 && nameSlug
+      ? `https://www.fastpeoplesearch.com/name/${nameSlug}${cityStateSlug ? `_${cityStateSlug}` : ""}`
+      : !isPoBox && streetSlug && cityStateSlug
+      ? `https://www.fastpeoplesearch.com/address/${streetSlug}_${cityStateSlug}`
+      : `https://www.google.com/search?q=${encodeURIComponent(`"${rawName}" "${rawAddr}" phone`)}`;
+
+  const cityStateZip = [city, [state, zip].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  const truePeopleUrl = !isEntity
+    ? `https://www.truepeoplesearch.com/results?name=${encodeURIComponent(personSearchName)}&citystatezip=${encodeURIComponent(cityStateZip)}`
+    : `https://www.google.com/search?q=${encodeURIComponent(`"${rawName}" "${rawAddr}" phone number`)}`;
+
+  const addressUrl =
+    !isPoBox && streetSlug && cityStateSlug
+      ? `https://www.fastpeoplesearch.com/address/${streetSlug}_${cityStateSlug}`
+      : `https://www.google.com/search?q=${encodeURIComponent(`"${rawAddr}" "${rawName}" resident phone`)}`;
+
+  const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(`"${rawName}" "${rawAddr}" phone email`)}`;
+
+  return { fastPeopleUrl, truePeopleUrl, addressUrl, googleUrl, personSearchName };
+}
+
+function createLookupPill(label, href, title) {
+  const a = document.createElement("a");
+  a.className = "cell-lookup-link";
+  a.href = href;
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  a.textContent = label;
+  a.title = title;
+  a.addEventListener("click", (e) => e.stopPropagation());
+  a.addEventListener("dblclick", (e) => e.stopPropagation());
+  return a;
 }
 
 function formatCellDisplay(td, val, rowObj = null, colKey = "", tr = null) {
   td.className = "";
   td.innerHTML = "";
+  const isContactCol = rowObj && (colKey === "personal/home phone" || colKey === "email");
+
   if (val === null || val === undefined || val === "") {
     td.classList.add("cell-null");
-    td.title = "Empty (Click Lookup to lazy-fill or double-click to edit)";
+    td.title = "Double-click cell to paste value, or use 1-click lookup buttons";
 
-    if (rowObj && (colKey === "personal/home phone" || colKey === "email")) {
+    if (isContactCol) {
+      const urls = buildRealPeopleSearchUrls(rowObj);
       const wrap = document.createElement("div");
       wrap.className = "cell-empty-wrap";
 
@@ -1088,22 +1188,29 @@ function formatCellDisplay(td, val, rowObj = null, colKey = "", tr = null) {
       dash.textContent = "—";
       wrap.appendChild(dash);
 
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "cell-lookup-link";
-      btn.textContent = "Lookup";
-      btn.title = `Lazy look up ${colKey} for ${rowObj.Name || "this owner"}`;
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const parentTr = tr || td.closest("tr");
-        if (parentTr) {
-          parentTr._lazyResolved = false;
-          triggerLazyRowLookup(parentTr, 60);
-        }
-      });
-      btn.addEventListener("dblclick", (e) => e.stopPropagation());
-      wrap.appendChild(btn);
+      const btnGroup = document.createElement("div");
+      btnGroup.className = "cell-lookup-group";
 
+      if (colKey === "personal/home phone") {
+        btnGroup.appendChild(
+          createLookupPill("FastPeople ↗", urls.fastPeopleUrl, `Find Personal & Home phone on FastPeopleSearch (${urls.personSearchName})`)
+        );
+        btnGroup.appendChild(
+          createLookupPill("TruePeople ↗", urls.truePeopleUrl, `Find Personal & Home phone on TruePeopleSearch (${urls.personSearchName})`)
+        );
+        btnGroup.appendChild(
+          createLookupPill("By Addr ↗", urls.addressUrl, `Reverse street address lookup on FastPeopleSearch`)
+        );
+      } else {
+        btnGroup.appendChild(
+          createLookupPill("TruePeople ↗", urls.truePeopleUrl, `Find email on TruePeopleSearch (${urls.personSearchName})`)
+        );
+        btnGroup.appendChild(
+          createLookupPill("Google ↗", urls.googleUrl, `Search email on Google for ${rowObj.Name}`)
+        );
+      }
+
+      wrap.appendChild(btnGroup);
       td.appendChild(wrap);
       return;
     }
@@ -1113,27 +1220,38 @@ function formatCellDisplay(td, val, rowObj = null, colKey = "", tr = null) {
   }
 
   const str = String(val);
-  if (rowObj && (colKey === "personal/home phone" || colKey === "email")) {
+  if (isContactCol) {
+    const urls = buildRealPeopleSearchUrls(rowObj);
     const wrap = document.createElement("div");
     wrap.className = "cell-empty-wrap";
 
     const valSpan = document.createElement("span");
+    valSpan.className = "cell-val-text";
     valSpan.textContent = str;
     wrap.appendChild(valSpan);
 
-    const webLink = document.createElement("a");
-    webLink.className = "cell-lookup-link";
-    webLink.href = buildContactLookupUrl(rowObj, colKey);
-    webLink.target = "_blank";
-    webLink.rel = "noopener noreferrer";
-    webLink.textContent = "Web ↗";
-    webLink.title = `Verify ${rowObj.Name || "owner"} on Google`;
-    webLink.addEventListener("click", (e) => e.stopPropagation());
-    webLink.addEventListener("dblclick", (e) => e.stopPropagation());
-    wrap.appendChild(webLink);
+    const btnGroup = document.createElement("div");
+    btnGroup.className = "cell-lookup-group";
 
+    if (colKey === "personal/home phone") {
+      btnGroup.appendChild(
+        createLookupPill("FastPeople ↗", urls.fastPeopleUrl, `Verify real Personal & Home numbers on FastPeopleSearch (${urls.personSearchName})`)
+      );
+      btnGroup.appendChild(
+        createLookupPill("TruePeople ↗", urls.truePeopleUrl, `Verify real Personal & Home numbers on TruePeopleSearch (${urls.personSearchName})`)
+      );
+    } else {
+      btnGroup.appendChild(
+        createLookupPill("TruePeople ↗", urls.truePeopleUrl, `Verify real email on TruePeopleSearch (${urls.personSearchName})`)
+      );
+      btnGroup.appendChild(
+        createLookupPill("Google ↗", urls.googleUrl, `Verify email on Google for ${rowObj.Name}`)
+      );
+    }
+
+    wrap.appendChild(btnGroup);
     td.appendChild(wrap);
-    td.title = `${str} (Double-click to edit)`;
+    td.title = `${str} (Double-click to edit or click FastPeople / TruePeople to verify real owner record)`;
     return;
   }
 
