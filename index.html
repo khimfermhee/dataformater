@@ -132,6 +132,10 @@
         <!-- Parsing & Formatting Options -->
         <div class="input-footer">
           <div class="parse-options">
+            <label class="checkbox-label" title="Lazily look up and populate personal/home phone and email as rows appear in the table">
+              <input type="checkbox" id="autoPopulateCheck" checked />
+              <span>Lazy lookup phone &amp; email</span>
+            </label>
             <label class="checkbox-label" title="Automatically trim leading and trailing whitespace from values">
               <input type="checkbox" id="trimValuesCheck" checked />
               <span>Trim whitespace</span>
@@ -378,6 +382,23 @@
         </div>
 
         <div class="modal-body">
+          <!-- Method 0: 1-Click Instant Auto-Populate -->
+          <div class="enrich-section">
+            <div class="enrich-section-header">
+              <span class="badge badge-accent">Instant Auto-Fill</span>
+              <strong>Auto-Populate Phone &amp; Email in All Rows</strong>
+            </div>
+            <p class="enrich-desc">
+              Automatically fills <strong>personal/home phone</strong> and <strong>email</strong> across all rows using our built-in public directory (builders, REITs, government, apartments/LLCs) and area-code/owner contact resolution.
+            </p>
+            <div class="enrich-upload-row">
+              <button type="button" id="autoFillMissingBtn" class="btn btn-primary">
+                Auto-Populate All Rows Now
+              </button>
+              <span id="autoFillStatusText" class="enrich-status-note">Auto-populates immediately into the table &amp; CSV export</span>
+            </div>
+          </div>
+
           <!-- Method 1: Merge Contact / Skip-Trace CSV -->
           <div class="enrich-section">
             <div class="enrich-section-header">

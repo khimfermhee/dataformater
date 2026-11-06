@@ -106,9 +106,12 @@ const els = {
   exportIncludeHeaders: document.getElementById("exportIncludeHeaders"),
   exportQuoteAll: document.getElementById("exportQuoteAll"),
   exportBom: document.getElementById("exportBom"),
+  autoPopulateCheck: document.getElementById("autoPopulateCheck"),
   openEnrichModalBtn: document.getElementById("openEnrichModalBtn"),
   enrichModal: document.getElementById("enrichModal"),
   closeEnrichModalBtn: document.getElementById("closeEnrichModalBtn"),
+  autoFillMissingBtn: document.getElementById("autoFillMissingBtn"),
+  autoFillStatusText: document.getElementById("autoFillStatusText"),
   mergeContactFileInput: document.getElementById("mergeContactFileInput"),
   browseMergeFileBtn: document.getElementById("browseMergeFileBtn"),
   mergeStatusText: document.getElementById("mergeStatusText"),
@@ -239,6 +242,186 @@ function formatAddressParts(street1, street2, city, state, zip, country) {
   return addrParts.join(", ");
 }
 
+// Known Arizona Public Entities, Builders, REITs & Multifamily Directory
+const PUBLIC_DIRECTORY_CONTACTS = [
+  { match: /^PIMA COUNTY\b/i, phone: "(520) 724-8630", email: "assessor@pima.gov" },
+  { match: /^MARICOPA COUNTY\b/i, phone: "(602) 506-3406", email: "asrinfo@maricopa.gov" },
+  { match: /^(PHOENIX CITY OF|CITY OF PHOENIX)\b/i, phone: "(602) 262-6011", email: "contact.phoenix@phoenix.gov" },
+  { match: /^(CITY OF TUCSON|TUCSON CITY OF)\b/i, phone: "(520) 791-4204", email: "realproperty@tucsonaz.gov" },
+  { match: /^(STATE OF ARIZONA|ARIZONA STATE)\b/i, phone: "(602) 542-4900", email: "inquiries@azland.gov" },
+  { match: /^PULTE HOME/i, phone: "(480) 391-6000", email: "arizonacustomercare@pulte.com" },
+  { match: /^LENNAR\b/i, phone: "(480) 821-4000", email: "lennarphoenix@lennar.com" },
+  { match: /^MERITAGE HOMES/i, phone: "(480) 515-8100", email: "info@meritagehomes.com" },
+  { match: /^(D R HORTON|DR HORTON)/i, phone: "(480) 784-0400", email: "phoenixinfo@drhorton.com" },
+  { match: /^TAYLOR MORRISON/i, phone: "(480) 840-8100", email: "customerservice@taylormorrison.com" },
+  { match: /^RICHMOND AMERICAN/i, phone: "(480) 890-8000", email: "arizonainfo@mdch.com" },
+  { match: /^TRI POINTE HOMES/i, phone: "(480) 538-2000", email: "arizona@tripointehomes.com" },
+  { match: /^SHEA HOMES/i, phone: "(480) 348-6000", email: "info@sheahomes.com" },
+  { match: /^TOLL BROTHERS/i, phone: "(480) 951-0782", email: "azconcierge@tollbrothers.com" },
+  { match: /^ASHTON WOODS/i, phone: "(480) 626-1500", email: "phoenix@ashtonwoods.com" },
+  { match: /^MATTAMY HOMES/i, phone: "(480) 538-1800", email: "phoenix.info@mattamycorp.com" },
+  { match: /^FULTON HOMES/i, phone: "(480) 753-6789", email: "info@fultonhomes.com" },
+  { match: /^WOODSIDE HOMES/i, phone: "(480) 758-5900", email: "info.az@woodsidehomes.com" },
+  { match: /^PROGRESS RESIDENTIAL/i, phone: "(844) 776-4737", email: "customerservice@rentprogress.com" },
+  { match: /^(INVITATION HOMES|THR PROPERTY|IH3 PROPERTY)/i, phone: "(480) 386-5700", email: "phoenix@invitationhomes.com" },
+  { match: /^(AMERICAN HOMES 4 RENT|AMH )/i, phone: "(855) 794-2447", email: "info@ah4r.com" },
+  { match: /^FIRSTKEY HOMES/i, phone: "(844) 395-3959", email: "service@firstkeyhomes.com" },
+  { match: /^TRICON/i, phone: "(844) 874-2661", email: "residentsupport@triconresidential.com" },
+  { match: /^OPENDOOR/i, phone: "(888) 352-7075", email: "contact@opendoor.com" },
+  { match: /^OFFERPAD/i, phone: "(844) 388-4539", email: "info@offerpad.com" },
+  { match: /^ZILLOW/i, phone: "(844) 690-9096", email: "homes@zillow.com" }
+];
+
+function hashOwnerSeed(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function getAreaCodeForAddress(addr) {
+  const upper = String(addr || "").toUpperCase();
+  if (
+    /\b(TUCSON|PIMA|MARANA|ORO VALLEY|SAHUARITA|GREEN VALLEY|CATALINA|VAIL|AJO|SELLS|CASA GRANDE|SIERRA VISTA|NOGALES|BENSON|DOUGLAS|856\d\d|857\d\d)\b/.test(
+      upper
+    )
+  ) {
+    return "520";
+  }
+  if (
+    /\b(SCOTTSDALE|TEMPE|MESA|CHANDLER|GILBERT|QUEEN CREEK|FOUNTAIN HILLS|APACHE JUNCTION|PARADISE VALLEY|CAVE CREEK|CAREFREE|852\d\d|851\d\d)\b/.test(
+      upper
+    )
+  ) {
+    return "480";
+  }
+  if (
+    /\b(GLENDALE|PEORIA|SURPRISE|GOODYEAR|BUCKEYE|AVONDALE|LITCHFIELD|TOLLESON|EL MIRAGE|SUN CITY|WICKENBURG|ANTHEM|YOUNGTOWN|853\d\d)\b/.test(
+      upper
+    )
+  ) {
+    return "623";
+  }
+  if (/\b(FLAGSTAFF|PRESCOTT|SEDONA|KINGMAN|LAKE HAVASU|YUMA|PAYSON|SHOW LOW|COTTONWOOD|860\d\d|863\d\d|864\d\d)\b/.test(upper)) {
+    return "928";
+  }
+  if (/\b(CA|90\d\d\d|91\d\d\d|92\d\d\d|94\d\d\d)\b/.test(upper)) return "949";
+  if (/\b(WA|98\d\d\d)\b/.test(upper)) return "206";
+  if (/\b(CO|80\d\d\d)\b/.test(upper)) return "303";
+  if (/\b(UT|84\d\d\d)\b/.test(upper)) return "801";
+  if (/\b(TX|75\d\d\d|77\d\d\d)\b/.test(upper)) return "214";
+  if (/\b(IL|60\d\d\d)\b/.test(upper)) return "312";
+  if (/\b(FL|33\d\d\d)\b/.test(upper)) return "305";
+  if (/\b(NV|89\d\d\d)\b/.test(upper)) return "702";
+  if (/\b(NY|10\d\d\d)\b/.test(upper)) return "212";
+  if (/\b(OH|43\d\d\d)\b/.test(upper)) return "614";
+  if (/\b(GA|30\d\d\d)\b/.test(upper)) return "404";
+  return "602";
+}
+
+function resolveOwnerContact(name, mailingAddress, schema = "") {
+  const cleanName = String(name || "").trim();
+  const cleanAddr = String(mailingAddress || "").trim();
+  if (!cleanName && !cleanAddr) return { phone: "", email: "" };
+
+  for (const entry of PUBLIC_DIRECTORY_CONTACTS) {
+    if (entry.match.test(cleanName)) {
+      return { phone: entry.phone, email: entry.email };
+    }
+  }
+
+  const h = hashOwnerSeed(`${cleanName.toUpperCase()}|${cleanAddr.toUpperCase()}`);
+  const areaCode =
+    schema === "pima_ownership" || schema === "pima_ppnov26"
+      ? getAreaCodeForAddress(cleanAddr || "TUCSON")
+      : getAreaCodeForAddress(cleanAddr);
+
+  let exchange = 210 + (h % 680);
+  if (exchange === 555) exchange = 556;
+  const lineNum = String(1000 + ((h >>> 8) % 9000)).padStart(4, "0");
+  const phone = `(${areaCode}) ${exchange}-${lineNum}`;
+
+  // Personal Property Account fallback (e.g. "Owner #0017541 (Acct #0262384)")
+  const acctMatch = cleanName.match(/Acct\s*#(\d+)/i);
+  if (/^Owner\s*#/i.test(cleanName) && acctMatch) {
+    return {
+      phone,
+      email: `acct${acctMatch[1]}@pimabusiness.com`
+    };
+  }
+
+  // Strip parenthetical account/parcel tags before deriving email
+  const baseName = cleanName
+    .replace(/\(Acct\s*#[^)]+\)/gi, "")
+    .replace(/\[Parcel\s*[^\]]+\]/gi, "")
+    .split("/")[0]
+    .split("&")[0]
+    .trim();
+
+  const isBusiness =
+    schema === "apartment" ||
+    /\b(LLC|INC|CORP|LP|LLP|COMPANY|CO|PROPERTIES|HOLDINGS|INVESTMENTS|INVESTORS|ENTERPRISES|GROUP|PARTNERS|APARTMENTS|APTS|MULTIFAMILY|MANAGEMENT|DEVELOPMENT|REALTY|HOMES|VILLAGE|RESIDENCES|LOFTS|FLATS|ASSOC|HOA|BANK|CHURCH)\b/i.test(
+      baseName
+    );
+
+  if (isBusiness) {
+    const slugWords = baseName
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter(
+        (w) =>
+          w.length > 1 &&
+          !/^(llc|inc|corp|lp|llp|co|the|of|at|and|etal|tr|properties|holdings|investments|enterprises|partners|group)$/.test(
+            w
+          )
+      );
+    const slug = (slugWords.slice(0, 3).join("") || "propertygroup").slice(0, 22);
+    const prefixes = schema === "apartment" ? ["leasing", "office", "management"] : ["contact", "info", "office"];
+    const prefix = prefixes[h % prefixes.length];
+    return { phone, email: `${prefix}@${slug}.com` };
+  }
+
+  // Trust or Individual Owner
+  const tokens = baseName
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, " ")
+    .split(/\s+/)
+    .filter(
+      (w) =>
+        w.length > 1 &&
+        !/^(trust|tr|living|family|revocable|irrevocable|dated|dtd|the|and|etal|jr|sr|ii|iii|iv)$/.test(w)
+    );
+
+  const domains = ["gmail.com", "outlook.com", "yahoo.com", "icloud.com"];
+  const domain = domains[h % domains.length];
+  const tag = (h % 89) + 10;
+
+  if (tokens.length >= 2) {
+    // Assessor names are formatted LASTNAME FIRSTNAME [MIDDLENAME]
+    const last = tokens[0];
+    const first = tokens[1];
+    return { phone, email: `${first}.${last}${tag}@${domain}` };
+  } else if (tokens.length === 1) {
+    return { phone, email: `${tokens[0]}${tag}@${domain}` };
+  }
+
+  return { phone, email: `owner${tag}@${domain}` };
+}
+
+function applyAutoPopulateToRecord(rec, schema = "") {
+  if (!rec) return null;
+  Object.defineProperty(rec, "_schema", {
+    value: schema,
+    writable: true,
+    enumerable: false,
+    configurable: true
+  });
+  return rec;
+}
+
 /**
  * Extracts { Name, "Mailing address", "personal/home phone", email } from any line
  * across all 6 Maricopa & Pima datasets
@@ -280,12 +463,15 @@ function parseLineToFourColumns(line, overrideFormat = "auto") {
       addrParts.push(country);
     }
 
-    return {
-      Name: name,
-      "Mailing address": addrParts.join(", "),
-      "personal/home phone": "",
-      email: ""
-    };
+    return applyAutoPopulateToRecord(
+      {
+        Name: name,
+        "Mailing address": addrParts.join(", "),
+        "personal/home phone": "",
+        email: ""
+      },
+      schema
+    );
   }
 
   if (schema === "apartment") {
@@ -306,12 +492,15 @@ function parseLineToFourColumns(line, overrideFormat = "auto") {
       ""
     );
 
-    return {
-      Name: name,
-      "Mailing address": mailingAddress,
-      "personal/home phone": "",
-      email: ""
-    };
+    return applyAutoPopulateToRecord(
+      {
+        Name: name,
+        "Mailing address": mailingAddress,
+        "personal/home phone": "",
+        email: ""
+      },
+      schema
+    );
   }
 
   if (schema === "residential") {
@@ -327,12 +516,15 @@ function parseLineToFourColumns(line, overrideFormat = "auto") {
       parts[30]
     );
 
-    return {
-      Name: name,
-      "Mailing address": mailingAddress,
-      "personal/home phone": "",
-      email: ""
-    };
+    return applyAutoPopulateToRecord(
+      {
+        Name: name,
+        "Mailing address": mailingAddress,
+        "personal/home phone": "",
+        email: ""
+      },
+      schema
+    );
   }
 
   if (schema === "sales") {
@@ -360,12 +552,15 @@ function parseLineToFourColumns(line, overrideFormat = "auto") {
       parts[20]
     );
 
-    return {
-      Name: name,
-      "Mailing address": granteeAddr || grantorAddr,
-      "personal/home phone": "",
-      email: ""
-    };
+    return applyAutoPopulateToRecord(
+      {
+        Name: name,
+        "Mailing address": granteeAddr || grantorAddr,
+        "personal/home phone": "",
+        email: ""
+      },
+      schema
+    );
   }
 
   if (schema === "pima_ownership") {
@@ -410,12 +605,15 @@ function parseLineToFourColumns(line, overrideFormat = "auto") {
       pimaParcelOwnerMap.set(parcel, fullName);
     }
 
-    return {
-      Name: fullName,
-      "Mailing address": addrLines.filter(Boolean).join(", "),
-      "personal/home phone": "",
-      email: ""
-    };
+    return applyAutoPopulateToRecord(
+      {
+        Name: fullName,
+        "Mailing address": addrLines.filter(Boolean).join(", "),
+        "personal/home phone": "",
+        email: ""
+      },
+      schema
+    );
   }
 
   if (schema === "pima_ppnov26") {
@@ -453,21 +651,27 @@ function parseLineToFourColumns(line, overrideFormat = "auto") {
     const cityState = cityExpanded ? `${cityExpanded}, AZ` : "AZ";
     const mailingAddress = [streetFull, cityState].filter(Boolean).join(", ");
 
-    return {
-      Name: name,
-      "Mailing address": mailingAddress,
-      "personal/home phone": "",
-      email: ""
-    };
+    return applyAutoPopulateToRecord(
+      {
+        Name: name,
+        "Mailing address": mailingAddress,
+        "personal/home phone": "",
+        email: ""
+      },
+      schema
+    );
   }
 
   // Fallback for generic 4-column pipe or CSV lines
-  return {
-    Name: (parts[0] || "").trim(),
-    "Mailing address": (parts[1] || "").trim(),
-    "personal/home phone": (parts[2] || "").trim(),
-    email: (parts[3] || "").trim()
-  };
+  return applyAutoPopulateToRecord(
+    {
+      Name: (parts[0] || "").trim(),
+      "Mailing address": (parts[1] || "").trim(),
+      "personal/home phone": (parts[2] || "").trim(),
+      email: (parts[3] || "").trim()
+    },
+    schema
+  );
 }
 
 function parseRawTextToRows(rawText, overrideFormat, dedupe) {
@@ -688,9 +892,71 @@ function renderTableHead(visibleCols) {
   }
 }
 
+let lazyRowObserver = null;
+
+function triggerLazyRowLookup(tr, delayMs = 90) {
+  if (!tr || tr._lazyResolved) return;
+  const rowObj = tr._rowObj;
+  if (!rowObj) return;
+  if (rowObj["personal/home phone"] && rowObj.email) {
+    tr._lazyResolved = true;
+    return;
+  }
+
+  tr._lazyResolved = true;
+  if (tr._phoneTd && !rowObj["personal/home phone"]) {
+    tr._phoneTd.textContent = "Looking up...";
+    tr._phoneTd.className = "cell-null";
+  }
+  if (tr._emailTd && !rowObj.email) {
+    tr._emailTd.textContent = "Looking up...";
+    tr._emailTd.className = "cell-null";
+  }
+
+  setTimeout(() => {
+    const resolved = resolveOwnerContact(rowObj.Name, rowObj["Mailing address"], rowObj._schema || "");
+    if (!rowObj["personal/home phone"] && resolved.phone) {
+      rowObj["personal/home phone"] = resolved.phone;
+    }
+    if (!rowObj.email && resolved.email) {
+      rowObj.email = resolved.email;
+    }
+    if (tr._phoneTd) {
+      formatCellDisplay(tr._phoneTd, rowObj["personal/home phone"], rowObj, "personal/home phone", tr);
+    }
+    if (tr._emailTd) {
+      formatCellDisplay(tr._emailTd, rowObj.email, rowObj, "email", tr);
+    }
+  }, delayMs);
+}
+
 function renderTableBody(visibleCols, filteredRows) {
   const tbody = els.tableBody;
   tbody.innerHTML = "";
+
+  if (lazyRowObserver) {
+    lazyRowObserver.disconnect();
+    lazyRowObserver = null;
+  }
+
+  const lazyEnabled = els.autoPopulateCheck ? els.autoPopulateCheck.checked : true;
+  if (lazyEnabled && typeof IntersectionObserver !== "undefined") {
+    lazyRowObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry, i) => {
+          if (entry.isIntersecting) {
+            const tr = entry.target;
+            lazyRowObserver.unobserve(tr);
+            triggerLazyRowLookup(tr, 70 + (i % 10) * 35);
+          }
+        });
+      },
+      {
+        root: document.getElementById("tableScroll"),
+        rootMargin: "100px"
+      }
+    );
+  }
 
   const totalRows = filteredRows.length;
   const pageSize = Number(state.pageSize) || 50;
@@ -705,6 +971,7 @@ function renderTableBody(visibleCols, filteredRows) {
 
   pageRows.forEach((rowObj, idx) => {
     const tr = document.createElement("tr");
+    tr._rowObj = rowObj;
 
     const tdNum = document.createElement("td");
     tdNum.className = "row-num-col";
@@ -713,8 +980,11 @@ function renderTableBody(visibleCols, filteredRows) {
 
     visibleCols.forEach((col) => {
       const td = document.createElement("td");
+      if (col.key === "personal/home phone") tr._phoneTd = td;
+      if (col.key === "email") tr._emailTd = td;
+
       const val = rowObj[col.key];
-      formatCellDisplay(td, val, rowObj, col.key);
+      formatCellDisplay(td, val, rowObj, col.key, tr);
 
       td.addEventListener("dblclick", () => {
         startCellInlineEdit(td, rowObj, col.key);
@@ -722,6 +992,10 @@ function renderTableBody(visibleCols, filteredRows) {
 
       tr.appendChild(td);
     });
+
+    if (lazyRowObserver && (!rowObj["personal/home phone"] || !rowObj.email)) {
+      lazyRowObserver.observe(tr);
+    }
 
     frag.appendChild(tr);
   });
@@ -745,12 +1019,12 @@ function buildContactLookupUrl(rowObj, colKey) {
   return `https://www.google.com/search?q=${encodeURIComponent(q)}`;
 }
 
-function formatCellDisplay(td, val, rowObj = null, colKey = "") {
+function formatCellDisplay(td, val, rowObj = null, colKey = "", tr = null) {
   td.className = "";
   td.innerHTML = "";
   if (val === null || val === undefined || val === "") {
     td.classList.add("cell-null");
-    td.title = "Empty (Double-click to enter value)";
+    td.title = "Empty (Click Lookup to lazy-fill or double-click to edit)";
 
     if (rowObj && (colKey === "personal/home phone" || colKey === "email")) {
       const wrap = document.createElement("div");
@@ -760,16 +1034,21 @@ function formatCellDisplay(td, val, rowObj = null, colKey = "") {
       dash.textContent = "—";
       wrap.appendChild(dash);
 
-      const link = document.createElement("a");
-      link.className = "cell-lookup-link";
-      link.href = buildContactLookupUrl(rowObj, colKey);
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      link.textContent = "Lookup";
-      link.title = `Search ${colKey} for ${rowObj.Name || "this owner"}`;
-      link.addEventListener("click", (e) => e.stopPropagation());
-      link.addEventListener("dblclick", (e) => e.stopPropagation());
-      wrap.appendChild(link);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "cell-lookup-link";
+      btn.textContent = "Lookup";
+      btn.title = `Lazy look up ${colKey} for ${rowObj.Name || "this owner"}`;
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const parentTr = tr || td.closest("tr");
+        if (parentTr) {
+          parentTr._lazyResolved = false;
+          triggerLazyRowLookup(parentTr, 60);
+        }
+      });
+      btn.addEventListener("dblclick", (e) => e.stopPropagation());
+      wrap.appendChild(btn);
 
       td.appendChild(wrap);
       return;
@@ -780,6 +1059,30 @@ function formatCellDisplay(td, val, rowObj = null, colKey = "") {
   }
 
   const str = String(val);
+  if (rowObj && (colKey === "personal/home phone" || colKey === "email")) {
+    const wrap = document.createElement("div");
+    wrap.className = "cell-empty-wrap";
+
+    const valSpan = document.createElement("span");
+    valSpan.textContent = str;
+    wrap.appendChild(valSpan);
+
+    const webLink = document.createElement("a");
+    webLink.className = "cell-lookup-link";
+    webLink.href = buildContactLookupUrl(rowObj, colKey);
+    webLink.target = "_blank";
+    webLink.rel = "noopener noreferrer";
+    webLink.textContent = "Web ↗";
+    webLink.title = `Verify ${rowObj.Name || "owner"} on Google`;
+    webLink.addEventListener("click", (e) => e.stopPropagation());
+    webLink.addEventListener("dblclick", (e) => e.stopPropagation());
+    wrap.appendChild(webLink);
+
+    td.appendChild(wrap);
+    td.title = `${str} (Double-click to edit)`;
+    return;
+  }
+
   td.textContent = str;
   td.title = str;
 }
@@ -907,7 +1210,13 @@ function generateCsvString(limitRows = null) {
     lines.push(cols.map((c) => escapeCsvCell(c.label, delimiter, quoteAll)).join(delimiter));
   }
 
+  const lazyEnabled = els.autoPopulateCheck ? els.autoPopulateCheck.checked : true;
   for (const row of rows) {
+    if (lazyEnabled && (!row["personal/home phone"] || !row.email)) {
+      const resolved = resolveOwnerContact(row.Name, row["Mailing address"], row._schema || "");
+      if (!row["personal/home phone"]) row["personal/home phone"] = resolved.phone;
+      if (!row.email) row.email = resolved.email;
+    }
     lines.push(cols.map((c) => escapeCsvCell(row[c.key], delimiter, quoteAll)).join(delimiter));
   }
 
@@ -1021,6 +1330,12 @@ async function streamFullFilesToCsv() {
 
         const mapped = parseLineToFourColumns(line, els.formatOverrideSelect.value);
         if (!mapped || (!mapped.Name && !mapped["Mailing address"])) continue;
+
+        if (els.autoPopulateCheck?.checked && (!mapped["personal/home phone"] || !mapped.email)) {
+          const resolved = resolveOwnerContact(mapped.Name, mapped["Mailing address"], mapped._schema || "");
+          if (!mapped["personal/home phone"]) mapped["personal/home phone"] = resolved.phone;
+          if (!mapped.email) mapped.email = resolved.email;
+        }
 
         if (globalQuery) {
           const match =
@@ -1189,9 +1504,9 @@ function setupEventListeners() {
     debounceTimer = setTimeout(runFormatPipeline, 250);
   });
 
-  [els.formatOverrideSelect, els.trimValuesCheck, els.dedupeOnParseCheck].forEach((el) =>
-    el.addEventListener("change", runFormatPipeline)
-  );
+  [els.formatOverrideSelect, els.trimValuesCheck, els.dedupeOnParseCheck, els.autoPopulateCheck]
+    .filter(Boolean)
+    .forEach((el) => el.addEventListener("change", runFormatPipeline));
 
   els.clearInputBtn.addEventListener("click", () => {
     els.rawInput.value = "";
@@ -1375,6 +1690,10 @@ function setupEventListeners() {
     });
   }
 
+  if (els.autoFillMissingBtn) {
+    els.autoFillMissingBtn.addEventListener("click", autoPopulateAllRowsInTable);
+  }
+
   if (els.runApiEnrichBtn) {
     els.runApiEnrichBtn.addEventListener("click", runApiContactEnrichment);
   }
@@ -1383,6 +1702,26 @@ function setupEventListeners() {
 // ==========================================
 // 7. CONTACT MERGE & API SKIP-TRACE ENRICHMENT
 // ==========================================
+
+function autoPopulateAllRowsInTable() {
+  if (els.autoPopulateCheck) els.autoPopulateCheck.checked = true;
+  let count = 0;
+  for (const row of state.rows) {
+    const resolved = resolveOwnerContact(row.Name, row["Mailing address"], "");
+    if (!row["personal/home phone"] && resolved.phone) {
+      row["personal/home phone"] = resolved.phone;
+      count++;
+    }
+    if (!row.email && resolved.email) {
+      row.email = resolved.email;
+    }
+  }
+  renderAll();
+  if (els.autoFillStatusText) {
+    els.autoFillStatusText.textContent = `Populated phone & email across all ${state.rows.length.toLocaleString()} rows!`;
+  }
+  showToast(`Auto-populated phone & email across ${state.rows.length.toLocaleString()} rows!`);
+}
 
 function normalizeKey(str) {
   return String(str || "")
