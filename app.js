@@ -795,26 +795,19 @@ function updateLockStatusUI() {
     els.unlockAccessBtn.className = "stat-pill stat-pill-unlocked";
     els.lockStatusIcon.textContent = "🔓";
     els.lockStatusLabel.textContent = "Voucher Unlocked (All Records)";
-    els.unlockAccessBtn.title = "All records and Phone & Email tools are unlocked";
+    els.unlockAccessBtn.title = "All records and Get Phone & Email tools are unlocked";
     if (els.openEnrichModalBtn) {
       els.openEnrichModalBtn.disabled = false;
       els.openEnrichModalBtn.title = "Find, enrich, or merge phone numbers & emails into the table";
-    }
-    if (els.autoPopulateCheck) {
-      els.autoPopulateCheck.disabled = false;
     }
   } else {
     els.unlockAccessBtn.className = "stat-pill stat-pill-locked";
     els.lockStatusIcon.textContent = "🔒";
     els.lockStatusLabel.textContent = "100 Record Limit — Enter Voucher Code";
-    els.unlockAccessBtn.title = "Click to enter Voucher Code to unlock all records and Phone & Email";
+    els.unlockAccessBtn.title = "Click to enter Voucher Code to unlock all records and Get Phone & Email";
     if (els.openEnrichModalBtn) {
       els.openEnrichModalBtn.disabled = true;
       els.openEnrichModalBtn.title = "Enter Voucher Code to enable Get Phone & Email";
-    }
-    if (els.autoPopulateCheck) {
-      els.autoPopulateCheck.checked = false;
-      els.autoPopulateCheck.disabled = true;
     }
   }
 }
@@ -989,7 +982,7 @@ function renderTableBody(visibleCols, filteredRows) {
     lazyRowObserver = null;
   }
 
-  const lazyEnabled = state.isUnlocked && (els.autoPopulateCheck ? els.autoPopulateCheck.checked : true);
+  const lazyEnabled = els.autoPopulateCheck ? els.autoPopulateCheck.checked : true;
   if (lazyEnabled && typeof IntersectionObserver !== "undefined") {
     lazyRowObserver = new IntersectionObserver(
       (entries) => {
@@ -1077,11 +1070,9 @@ function formatCellDisplay(td, val, rowObj = null, colKey = "", tr = null) {
   td.innerHTML = "";
   if (val === null || val === undefined || val === "") {
     td.classList.add("cell-null");
-    td.title = state.isUnlocked
-      ? "Empty (Click Lookup to lazy-fill or double-click to edit)"
-      : "Locked — Enter Voucher Code to enable Phone & Email";
+    td.title = "Empty (Click Lookup to lazy-fill or double-click to edit)";
 
-    if (state.isUnlocked && rowObj && (colKey === "personal/home phone" || colKey === "email")) {
+    if (rowObj && (colKey === "personal/home phone" || colKey === "email")) {
       const wrap = document.createElement("div");
       wrap.className = "cell-empty-wrap";
 
@@ -1269,7 +1260,7 @@ function generateCsvString(limitRows = null) {
     lines.push(cols.map((c) => escapeCsvCell(c.label, delimiter, quoteAll)).join(delimiter));
   }
 
-  const lazyEnabled = state.isUnlocked && (els.autoPopulateCheck ? els.autoPopulateCheck.checked : true);
+  const lazyEnabled = els.autoPopulateCheck ? els.autoPopulateCheck.checked : true;
   for (const row of rows) {
     if (lazyEnabled && (!row["personal/home phone"] || !row.email)) {
       const resolved = resolveOwnerContact(row.Name, row["Mailing address"], row._schema || "");
