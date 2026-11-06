@@ -32,6 +32,8 @@ const MALEN_DATA = window.MALEN_DATASETS || {
   pima_ppnov26: ""
 };
 
+const MAX_LOCKED_RECORDS = 100;
+
 // Application State
 const state = {
   columns: TARGET_4_COLUMNS.map((c) => ({ ...c })),
@@ -45,6 +47,8 @@ const state = {
   currentPage: 1,
   pageSize: 50,
   activeView: "table",
+  isUnlocked: false, // Locked to 100 records per dropdown until Voucher Code is entered
+  pendingSecurityAction: null,
   uploadedFiles: [] // Array of File objects when user drops/selects 1 or more .txt/.csv files
 };
 
@@ -120,6 +124,15 @@ const els = {
   enrichApiKeyInput: document.getElementById("enrichApiKeyInput"),
   runApiEnrichBtn: document.getElementById("runApiEnrichBtn"),
   apiEnrichStatus: document.getElementById("apiEnrichStatus"),
+  unlockAccessBtn: document.getElementById("unlockAccessBtn"),
+  lockStatusIcon: document.getElementById("lockStatusIcon"),
+  lockStatusLabel: document.getElementById("lockStatusLabel"),
+  securityModal: document.getElementById("securityModal"),
+  closeSecurityModalBtn: document.getElementById("closeSecurityModalBtn"),
+  securityCodeInput: document.getElementById("securityCodeInput"),
+  securityErrorMsg: document.getElementById("securityErrorMsg"),
+  submitSecurityCodeBtn: document.getElementById("submitSecurityCodeBtn"),
+  export100OnlyBtn: document.getElementById("export100OnlyBtn"),
   toast: document.getElementById("toast")
 };
 
@@ -726,7 +739,7 @@ function parseRawTextToRows(rawText, overrideFormat, dedupe) {
 // 2. FILTERING, SORTING & TABLE RENDERING
 // ==========================================
 
-function getFilteredAndSortedRows() {
+function getFilteredAndSortedRows(applyLockLimit = true) {
   const visibleCols = state.columns.filter((c) => c.visible);
   const globalQuery = state.globalSearch.trim().toLowerCase();
   const activeColFilters = Object.entries(state.columnFilters).filter(
@@ -769,7 +782,26 @@ function getFilteredAndSortedRows() {
     });
   }
 
+  if (applyLockLimit && !state.isUnlocked && result.length > MAX_LOCKED_RECORDS) {
+    return result.slice(0, MAX_LOCKED_RECORDS);
+  }
+
   return result;
+}
+
+function updateLockStatusUI() {
+  if (!els.unlockAccessBtn) return;
+  if (state.isUnlocked) {
+    els.unlockAccessBtn.className = "stat-pill stat-pill-unlocked";
+    els.lockStatusIcon.textContent = "🔓";
+    els.lockStatusLabel.textContent = "Voucher Unlocked (All Records)";
+    els.unlockAccessBtn.title = "All records are unlocked for display and export";
+  } else {
+    els.unlockAccessBtn.className = "stat-pill stat-pill-locked";
+    els.lockStatusIcon.textContent = "🔒";
+    els.lockStatusLabel.textContent = "100 Record Limit — Enter Voucher Code";
+    els.unlockAccessBtn.title = "Click to enter Voucher Code to unlock all records";
+  }
 }
 
 function renderAll() {
@@ -777,13 +809,16 @@ function renderAll() {
   els.emptyState.classList.toggle("hidden", hasData);
   els.dataTable.classList.toggle("hidden", !hasData);
 
-  const visibleCols = state.columns.filter((c) => c.visible);
-  const filteredRows = getFilteredAndSortedRows();
+  updateLockStatusUI();
 
-  els.rowCountStat.textContent =
-    filteredRows.length === state.rows.length
-      ? state.rows.length.toLocaleString()
-      : `${filteredRows.length.toLocaleString()} / ${state.rows.length.toLocaleString()}`;
+  const visibleCols = state.columns.filter((c) => c.visible);
+  const filteredRows = getFilteredAndSortedRows(true);
+
+  els.rowCountStat.textContent = !state.isUnlocked
+    ? `${filteredRows.length.toLocaleString()} / ${state.rows.length.toLocaleString()} (Locked)`
+    : filteredRows.length === state.rows.length
+    ? state.rows.length.toLocaleString()
+    : `${filteredRows.length.toLocaleString()} / ${state.rows.length.toLocaleString()}`;
   els.colCountStat.textContent = visibleCols.length;
 
   if (!hasData) {
@@ -1002,9 +1037,12 @@ function renderTableBody(visibleCols, filteredRows) {
 
   tbody.appendChild(frag);
 
+  const totalUnclamped = getFilteredAndSortedRows(false).length;
   els.showingInfo.textContent =
     totalRows === 0
       ? "No matching rows"
+      : !state.isUnlocked && totalUnclamped > MAX_LOCKED_RECORDS
+      ? `Showing ${(startIdx + 1).toLocaleString()} to ${endIdx.toLocaleString()} of ${totalRows.toLocaleString()} locked records (${totalUnclamped.toLocaleString()} total — Enter Voucher Code to unlock all)`
       : `Showing ${(startIdx + 1).toLocaleString()} to ${endIdx.toLocaleString()} of ${totalRows.toLocaleString()} rows`;
   els.pageIndicator.textContent = `Page ${state.currentPage} of ${totalPages.toLocaleString()}`;
   els.prevPageBtn.disabled = state.currentPage <= 1;
@@ -1199,7 +1237,11 @@ function generateCsvString(limitRows = null) {
     ? state.columns.filter((c) => c.visible)
     : state.columns;
 
-  let rows = filteredOnly ? getFilteredAndSortedRows() : state.rows;
+  let rows = filteredOnly
+    ? getFilteredAndSortedRows(true)
+    : state.isUnlocked
+    ? state.rows
+    : state.rows.slice(0, MAX_LOCKED_RECORDS);
   if (limitRows && rows.length > limitRows) {
     rows = rows.slice(0, limitRows);
   }
@@ -1224,12 +1266,21 @@ function generateCsvString(limitRows = null) {
 }
 
 function updateCsvPreview() {
-  els.csvPreviewOutput.value = generateCsvString(500);
+  els.csvPreviewOutput.value = generateCsvString(state.isUnlocked ? 500 : MAX_LOCKED_RECORDS);
 }
 
-function exportToCsvFile() {
+function exportToCsvFile(force100Only = false) {
   if (state.rows.length === 0) {
     showToast("No data available to export!");
+    return;
+  }
+
+  if (
+    !state.isUnlocked &&
+    force100Only !== true &&
+    getFilteredAndSortedRows(false).length > MAX_LOCKED_RECORDS
+  ) {
+    openSecurityModal("export");
     return;
   }
 
@@ -1250,14 +1301,19 @@ function exportToCsvFile() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 
-  showToast(`Exported ${filename} (${getFilteredAndSortedRows().length.toLocaleString()} rows)!`);
+  showToast(`Exported ${filename} (${getFilteredAndSortedRows(true).length.toLocaleString()} rows)!`);
 }
 
-// Stream-convert 1 or all 4 massive .txt files in chunks directly to a 4-Column CSV file
-async function streamFullFilesToCsv() {
+// Stream-convert 1 or all 6 massive .txt/.csv files in chunks directly to a 4-Column CSV file
+async function streamFullFilesToCsv(force100Only = false) {
   const files = state.uploadedFiles;
   if (!files || files.length === 0) {
-    showToast("Please drop or select your .txt file(s) first.");
+    showToast("Please drop or select your file(s) first.");
+    return;
+  }
+
+  if (!state.isUnlocked && force100Only !== true) {
+    openSecurityModal("stream");
     return;
   }
 
@@ -1311,8 +1367,10 @@ async function streamFullFilesToCsv() {
   let totalExported = 0;
   const globalQuery = filteredOnly ? state.globalSearch.trim().toLowerCase() : "";
   const CHUNK_SIZE = 8 * 1024 * 1024;
+  let hitLockLimit = false;
 
   for (const file of files) {
+    if (hitLockLimit) break;
     let offset = 0;
     let leftover = "";
 
@@ -1325,6 +1383,10 @@ async function streamFullFilesToCsv() {
 
       let outBuffer = "";
       for (let i = 0; i < lines.length; i++) {
+        if (!state.isUnlocked && totalExported >= MAX_LOCKED_RECORDS) {
+          hitLockLimit = true;
+          break;
+        }
         const line = lines[i];
         if (!line || !line.trim()) continue;
 
@@ -1355,6 +1417,8 @@ async function streamFullFilesToCsv() {
         await writeChunk(outBuffer);
       }
 
+      if (hitLockLimit) break;
+
       offset += CHUNK_SIZE;
       processedBytes += Math.min(CHUNK_SIZE, file.size - (offset - CHUNK_SIZE));
       const pct = Math.min(100, Math.round((processedBytes / totalBytes) * 100));
@@ -1382,20 +1446,28 @@ async function streamFullFilesToCsv() {
   showToast(`Completed! Exported ${totalExported.toLocaleString()} rows to ${filename}.`);
 }
 
-async function copyCsvToClipboard() {
+async function copyCsvToClipboard(force100Only = false) {
   if (state.rows.length === 0) {
     showToast("No data to copy!");
+    return;
+  }
+  if (
+    !state.isUnlocked &&
+    force100Only !== true &&
+    getFilteredAndSortedRows(false).length > MAX_LOCKED_RECORDS
+  ) {
+    openSecurityModal("copy");
     return;
   }
   const csvContent = generateCsvString();
   try {
     await navigator.clipboard.writeText(csvContent);
-    showToast("Formatted CSV copied to clipboard!");
+    showToast(`Copied ${getFilteredAndSortedRows(true).length.toLocaleString()} rows to clipboard!`);
   } catch (_) {
     els.csvPreviewOutput.value = csvContent;
     els.csvPreviewOutput.select();
     document.execCommand("copy");
-    showToast("Formatted CSV copied to clipboard!");
+    showToast(`Copied ${getFilteredAndSortedRows(true).length.toLocaleString()} rows to clipboard!`);
   }
 }
 
@@ -1557,7 +1629,7 @@ function setupEventListeners() {
     if (state.uploadedFiles.length > 0) loadPreviewFromUploadedFiles();
   });
 
-  els.streamFullCsvBtn.addEventListener("click", streamFullFilesToCsv);
+  els.streamFullCsvBtn.addEventListener("click", () => streamFullFilesToCsv(false));
 
   els.globalSearchInput.addEventListener("input", (e) => {
     state.globalSearch = e.target.value;
@@ -1629,8 +1701,8 @@ function setupEventListeners() {
     });
   });
 
-  els.exportCsvBtn.addEventListener("click", exportToCsvFile);
-  els.copyCsvBtn.addEventListener("click", copyCsvToClipboard);
+  els.exportCsvBtn.addEventListener("click", () => exportToCsvFile(false));
+  els.copyCsvBtn.addEventListener("click", () => copyCsvToClipboard(false));
 
   [els.exportDelimiter, els.exportFilteredOnly, els.exportIncludeHeaders, els.exportQuoteAll].forEach(
     (el) =>
@@ -1640,7 +1712,16 @@ function setupEventListeners() {
   );
 
   els.pageSizeSelect.addEventListener("change", (e) => {
-    state.pageSize = e.target.value;
+    const val = Number(e.target.value);
+    if (!state.isUnlocked && val > MAX_LOCKED_RECORDS) {
+      e.target.value = String(MAX_LOCKED_RECORDS);
+      state.pageSize = MAX_LOCKED_RECORDS;
+      state.currentPage = 1;
+      renderAll();
+      openSecurityModal("display");
+      return;
+    }
+    state.pageSize = val;
     state.currentPage = 1;
     renderAll();
   });
@@ -1666,6 +1747,25 @@ function setupEventListeners() {
     const next = html.getAttribute("data-theme") === "dark" ? "light" : "dark";
     html.setAttribute("data-theme", next);
   });
+
+  if (els.unlockAccessBtn) {
+    els.unlockAccessBtn.addEventListener("click", () => {
+      if (!state.isUnlocked) openSecurityModal("display");
+    });
+  }
+
+  if (els.securityModal) {
+    els.closeSecurityModalBtn.addEventListener("click", closeSecurityModal);
+    els.securityModal.addEventListener("click", (e) => {
+      if (e.target === els.securityModal) closeSecurityModal();
+    });
+    els.submitSecurityCodeBtn.addEventListener("click", verifyVoucherAndUnlock);
+    els.securityCodeInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") verifyVoucherAndUnlock();
+      if (e.key === "Escape") closeSecurityModal();
+    });
+    els.export100OnlyBtn.addEventListener("click", continueWith100Only);
+  }
 
   if (els.openEnrichModalBtn && els.enrichModal) {
     els.openEnrichModalBtn.addEventListener("click", () => {
@@ -1700,8 +1800,73 @@ function setupEventListeners() {
 }
 
 // ==========================================
-// 7. CONTACT MERGE & API SKIP-TRACE ENRICHMENT
+// 7. VOUCHER CODE SECURITY & CONTACT ENRICHMENT
 // ==========================================
+
+function isValidVoucherCode(code) {
+  const clean = String(code || "").trim().toUpperCase();
+  return clean === "MALEN2026";
+}
+
+function openSecurityModal(action = "display") {
+  if (!els.securityModal) return;
+  state.pendingSecurityAction = action;
+  els.securityCodeInput.value = "";
+  els.securityErrorMsg.classList.add("hidden");
+
+  if (els.export100OnlyBtn) {
+    els.export100OnlyBtn.textContent =
+      action === "export" || action === "stream"
+        ? "Export 100 Records Only"
+        : action === "copy"
+        ? "Copy 100 Records Only"
+        : "Keep 100 Record Limit";
+  }
+
+  els.securityModal.classList.remove("hidden");
+  setTimeout(() => els.securityCodeInput.focus(), 50);
+}
+
+function closeSecurityModal() {
+  if (!els.securityModal) return;
+  els.securityModal.classList.add("hidden");
+  state.pendingSecurityAction = null;
+}
+
+function verifyVoucherAndUnlock() {
+  const code = els.securityCodeInput ? els.securityCodeInput.value : "";
+  if (!isValidVoucherCode(code)) {
+    if (els.securityErrorMsg) els.securityErrorMsg.classList.remove("hidden");
+    return;
+  }
+
+  state.isUnlocked = true;
+  const action = state.pendingSecurityAction;
+  closeSecurityModal();
+  renderAll();
+  showToast("Voucher accepted! All records are now unlocked for display and export.");
+
+  if (action === "export") {
+    exportToCsvFile(true);
+  } else if (action === "copy") {
+    copyCsvToClipboard(true);
+  } else if (action === "stream") {
+    streamFullFilesToCsv(true);
+  }
+}
+
+function continueWith100Only() {
+  const action = state.pendingSecurityAction;
+  closeSecurityModal();
+
+  if (action === "export") {
+    exportToCsvFile(true);
+  } else if (action === "copy") {
+    copyCsvToClipboard(true);
+  } else if (action === "stream") {
+    streamFullFilesToCsv(true);
+  }
+}
 
 function autoPopulateAllRowsInTable() {
   if (els.autoPopulateCheck) els.autoPopulateCheck.checked = true;

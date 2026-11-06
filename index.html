@@ -32,7 +32,7 @@
           <select id="sampleSelect" class="select-control" title="Switch between the 6 datasets">
             <option value="all_6_malen" selected>All 6 Files Combined (Maricopa + Pima Datasets)</option>
             <option value="nov_2027">1. 2027_NOV_Redacted.txt (Notice of Valuation)</option>
-            <option value="apartment_master">2. Apartment_Master.txt (Full 3,330 Rows)</option>
+            <option value="apartment_master">2. Apartment_Master.txt (Apartment Master)</option>
             <option value="residential_master">3. Residential_Master.txt (Residential Master)</option>
             <option value="sales_affidavits">4. Sales_Affidavits.txt (Sales Affidavits)</option>
             <option value="pima_ownership">5. Ownership.csv (Pima County Ownership)</option>
@@ -169,6 +169,10 @@
             <div class="stats-pills" id="statsPills">
               <span class="stat-pill"><strong id="rowCountStat">0</strong> rows</span>
               <span class="stat-pill"><strong id="colCountStat">4</strong> cols</span>
+              <button type="button" id="unlockAccessBtn" class="stat-pill stat-pill-locked" title="Click to enter Voucher Code to unlock all records">
+                <span id="lockStatusIcon">&#128274;</span>
+                <span id="lockStatusLabel">100 Record Limit &mdash; Enter Voucher Code</span>
+              </button>
             </div>
           </div>
 
@@ -460,6 +464,42 @@
             <p class="enrich-desc">
               Hover over any empty <strong>personal/home phone</strong> or <strong>email</strong> cell in the table and click <strong>Lookup</strong> to search that owner &amp; address on FastPeopleSearch (for individuals) or Google Contacts (for LLCs/apartments), then double-click the cell to paste.
             </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Security Code Unlock Modal -->
+    <div id="securityModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="securityModalTitle">
+      <div class="modal-card modal-card-sm">
+        <div class="modal-header">
+          <div>
+            <h3 id="securityModalTitle">&#128274; Enter Voucher Code to Unlock All</h3>
+            <p class="modal-subtitle">Each dropdown dataset is limited to displaying &amp; exporting <strong>100 records</strong> by default. Enter your voucher code to unlock everything:</p>
+          </div>
+          <button type="button" id="closeSecurityModalBtn" class="btn btn-icon btn-sm" aria-label="Close">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="securityCodeInput">Voucher Code</label>
+            <input
+              type="password"
+              id="securityCodeInput"
+              class="input-control"
+              placeholder="Enter voucher code to unlock all records..."
+              autocomplete="off"
+            />
+          </div>
+          <div id="securityErrorMsg" class="security-error hidden">Invalid voucher code. Please check your code and try again.</div>
+
+          <div class="security-actions">
+            <button type="button" id="submitSecurityCodeBtn" class="btn btn-primary">
+              Unlock Everything
+            </button>
+            <button type="button" id="export100OnlyBtn" class="btn btn-secondary">
+              Export 100 Records Only
+            </button>
           </div>
         </div>
       </div>
