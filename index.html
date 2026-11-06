@@ -22,19 +22,21 @@
         </div>
         <div>
           <h1>Data Formatter &amp; CSV Studio</h1>
-          <p class="subtitle">Displaying: <strong>Name, Mailing address, personal/home phone, email</strong> across all 4 Malen files</p>
+          <p class="subtitle">Displaying: <strong>Name, Mailing address, personal/home phone, email</strong> across all 6 Malen &amp; Pima files</p>
         </div>
       </div>
 
       <div class="header-actions">
         <div class="sample-dropdown">
           <label for="sampleSelect" class="sr-only">Select Dataset</label>
-          <select id="sampleSelect" class="select-control" title="Switch between the 4 Malen files">
-            <option value="all_4_malen" selected>All 4 Files Combined (2027_NOV + Apartment + Residential + Sales)</option>
+          <select id="sampleSelect" class="select-control" title="Switch between the 6 datasets">
+            <option value="all_6_malen" selected>All 6 Files Combined (Maricopa + Pima Datasets)</option>
             <option value="nov_2027">1. 2027_NOV_Redacted.txt (Notice of Valuation)</option>
             <option value="apartment_master">2. Apartment_Master.txt (Full 3,330 Rows)</option>
             <option value="residential_master">3. Residential_Master.txt (Residential Master)</option>
             <option value="sales_affidavits">4. Sales_Affidavits.txt (Sales Affidavits)</option>
+            <option value="pima_ownership">5. Ownership.csv (Pima County Ownership)</option>
+            <option value="pima_ppnov26">6. PpNov26.csv (Pima Personal Property NOV 2026)</option>
           </select>
         </div>
 
@@ -61,7 +63,7 @@
         <div class="panel-header">
           <div class="panel-title-group">
             <h2>1. Raw Input</h2>
-            <span id="detectedFormatBadge" class="badge badge-accent">All 4 Malen Files</span>
+            <span id="detectedFormatBadge" class="badge badge-accent">All 6 Datasets</span>
           </div>
           <div class="panel-header-actions">
             <select id="formatOverrideSelect" class="select-control select-sm" title="Input Format">
@@ -70,6 +72,8 @@
               <option value="apartment">Apartment_Master (39-Col)</option>
               <option value="residential">Residential_Master (39-Col)</option>
               <option value="sales">Sales_Affidavits (44-Col)</option>
+              <option value="pima_ownership">Ownership.csv (Pima 8-Col)</option>
+              <option value="pima_ppnov26">PpNov26.csv (Pima 23-Col)</option>
               <option value="pipe">Generic Pipe (|)</option>
               <option value="csv">CSV (,)</option>
             </select>
@@ -86,7 +90,7 @@
               <polyline points="17 8 12 3 7 8"></polyline>
               <line x1="12" y1="3" x2="12" y2="15"></line>
             </svg>
-            <span>Drop one or all 4 <strong>.txt</strong> files here or <button type="button" id="browseFileBtn" class="link-btn">browse files</button></span>
+            <span>Drop one or all 6 <strong>.txt / .csv</strong> files here or <button type="button" id="browseFileBtn" class="link-btn">browse files</button></span>
           </div>
         </div>
 
@@ -120,7 +124,7 @@
         <div class="editor-wrapper">
           <textarea
             id="rawInput"
-            placeholder="Paste raw lines from 2027_NOV_Redacted.txt, Apartment_Master.txt, Residential_Master.txt, or Sales_Affidavits.txt..."
+            placeholder="Paste raw lines from 2027_NOV_Redacted.txt, Apartment_Master.txt, Residential_Master.txt, Sales_Affidavits.txt, Ownership.csv, or PpNov26.csv..."
             spellcheck="false"
           ></textarea>
         </div>
@@ -256,6 +260,13 @@
           </div>
 
           <div class="toolbar-actions">
+            <button id="openEnrichModalBtn" class="btn btn-primary btn-sm" title="Find, enrich, or merge phone numbers &amp; emails into the table">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+              </svg>
+              <span>Get Phone &amp; Email</span>
+            </button>
+
             <button id="dedupeBtn" class="btn btn-ghost btn-sm" title="Remove duplicate Name + Mailing address rows">
               <span>Remove Duplicates</span>
             </button>
@@ -310,9 +321,9 @@
                 </svg>
               </div>
               <h3>No Data Loaded</h3>
-              <p>Drop your <strong>.txt</strong> files or click below to load all 4 preloaded Malen datasets.</p>
+              <p>Drop your <strong>.txt</strong> or <strong>.csv</strong> files or click below to load all 6 preloaded datasets.</p>
               <div class="empty-actions">
-                <button type="button" class="btn btn-primary" id="loadDefaultSampleBtn">Load All 4 Malen Datasets</button>
+                <button type="button" class="btn btn-primary" id="loadDefaultSampleBtn">Load All 6 Datasets</button>
               </div>
             </div>
           </div>
@@ -354,6 +365,84 @@
         </div>
       </section>
     </main>
+
+    <!-- Contact Enrichment & Merge Modal -->
+    <div id="enrichModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="enrichModalTitle">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div>
+            <h3 id="enrichModalTitle">Populate Phone Numbers &amp; Emails</h3>
+            <p class="modal-subtitle">Assessor tax rolls only publish Name &amp; Mailing Address. Use any method below to fill in <strong>personal/home phone</strong> and <strong>email</strong>:</p>
+          </div>
+          <button type="button" id="closeEnrichModalBtn" class="btn btn-icon btn-sm" aria-label="Close">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <!-- Method 1: Merge Contact / Skip-Trace CSV -->
+          <div class="enrich-section">
+            <div class="enrich-section-header">
+              <span class="badge badge-accent">1. Merge Contact CSV</span>
+              <strong>Import from Skip-Trace or Contact Spreadsheet</strong>
+            </div>
+            <p class="enrich-desc">
+              Have a CSV/TXT file from BatchSkipTracing, PropStream, DirectSkip, Tracerfy, Apollo, or your own contact list? Upload it below and we will automatically match rows by <strong>Name</strong> or <strong>Mailing address</strong> and fill in phone &amp; email.
+            </p>
+            <div class="enrich-upload-row">
+              <input type="file" id="mergeContactFileInput" accept=".csv,.txt,.tsv" hidden />
+              <button type="button" id="browseMergeFileBtn" class="btn btn-secondary">
+                Upload Contact CSV to Merge
+              </button>
+              <span id="mergeStatusText" class="enrich-status-note">Matches columns like Phone, Mobile, Email, Name, Address</span>
+            </div>
+          </div>
+
+          <!-- Method 2: Live Skip-Trace / Enrichment API -->
+          <div class="enrich-section">
+            <div class="enrich-section-header">
+              <span class="badge badge-accent">2. API Auto-Enrichment</span>
+              <strong>Fetch Phone &amp; Email via Enrichment API</strong>
+            </div>
+            <p class="enrich-desc">
+              Connect your API key to automatically query phone numbers and emails for the rows currently in your table.
+            </p>
+            <div class="enrich-api-grid">
+              <div class="form-group">
+                <label for="enrichProviderSelect">Provider</label>
+                <select id="enrichProviderSelect" class="select-control select-sm">
+                  <option value="pdl">People Data Labs (Person Enrich API)</option>
+                  <option value="batchdata">BatchData (Property Skip-Trace API)</option>
+                  <option value="apollo">Apollo.io (People Match API)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="enrichScopeSelect">Rows to Enrich</label>
+                <select id="enrichScopeSelect" class="select-control select-sm">
+                  <option value="page">Current Page Only (Fast)</option>
+                  <option value="25">First 25 Missing Rows</option>
+                  <option value="100">First 100 Missing Rows</option>
+                </select>
+              </div>
+            </div>
+            <div class="enrich-api-row">
+              <input type="password" id="enrichApiKeyInput" class="input-control input-sm" placeholder="Paste your API Key here..." />
+              <button type="button" id="runApiEnrichBtn" class="btn btn-primary btn-sm">Run API Lookup</button>
+            </div>
+            <div id="apiEnrichStatus" class="enrich-status-note"></div>
+          </div>
+
+          <!-- Method 3: 1-Click Free Web Lookup & Inline Edit -->
+          <div class="enrich-section">
+            <div class="enrich-section-header">
+              <span class="badge badge-accent">3. Free 1-Click Web Lookup</span>
+              <strong>Hover Any Empty Cell to Search Owner Contact</strong>
+            </div>
+            <p class="enrich-desc">
+              Hover over any empty <strong>personal/home phone</strong> or <strong>email</strong> cell in the table and click <strong>Lookup</strong> to search that owner &amp; address on FastPeopleSearch (for individuals) or Google Contacts (for LLCs/apartments), then double-click the cell to paste.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Toast Notification -->
     <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>

@@ -1,6 +1,6 @@
 /**
  * Data Formatter & CSV Studio
- * Formats all 4 Malen datasets into the 4 requested columns:
+ * Formats all 6 Malen & Pima datasets into the 4 requested columns:
  * 1. Name
  * 2. Mailing address
  * 3. personal/home phone
@@ -11,6 +11,8 @@
  * - Apartment_Master.txt (39-col pipe, EconUnit|LeadParcel|...)
  * - Residential_Master.txt (39-col pipe, ParcelNumber|ProportionComplete|...)
  * - Sales_Affidavits.txt (44-col pipe, PARCELNUMBER|SALEDATE_MMYYYY|...)
+ * - Ownership.csv (8-col quoted CSV, "Parcel","Mail1","Mail2","Mail3","Mail4","Mail5","Zip","Zip4")
+ * - PpNov26.csv (23-col CSV, RefNo,TaxYear,AccountNo,AccountStreetNo,...)
  * - Plus any generic CSV / Pipe / Tab / JSON input
  */
 
@@ -25,14 +27,16 @@ const MALEN_DATA = window.MALEN_DATASETS || {
   nov_2027: "",
   apartment_master: "",
   residential_master: "",
-  sales_affidavits: ""
+  sales_affidavits: "",
+  pima_ownership: "",
+  pima_ppnov26: ""
 };
 
 // Application State
 const state = {
   columns: TARGET_4_COLUMNS.map((c) => ({ ...c })),
   rows: [],
-  detectedFormat: "All 4 Malen Files",
+  detectedFormat: "All 6 Datasets",
   sortKey: null,
   sortDir: "asc",
   globalSearch: "",
@@ -41,7 +45,7 @@ const state = {
   currentPage: 1,
   pageSize: 50,
   activeView: "table",
-  uploadedFiles: [] // Array of File objects when user drops/selects 1 or more .txt files
+  uploadedFiles: [] // Array of File objects when user drops/selects 1 or more .txt/.csv files
 };
 
 // DOM Elements
@@ -102,12 +106,65 @@ const els = {
   exportIncludeHeaders: document.getElementById("exportIncludeHeaders"),
   exportQuoteAll: document.getElementById("exportQuoteAll"),
   exportBom: document.getElementById("exportBom"),
+  openEnrichModalBtn: document.getElementById("openEnrichModalBtn"),
+  enrichModal: document.getElementById("enrichModal"),
+  closeEnrichModalBtn: document.getElementById("closeEnrichModalBtn"),
+  mergeContactFileInput: document.getElementById("mergeContactFileInput"),
+  browseMergeFileBtn: document.getElementById("browseMergeFileBtn"),
+  mergeStatusText: document.getElementById("mergeStatusText"),
+  enrichProviderSelect: document.getElementById("enrichProviderSelect"),
+  enrichScopeSelect: document.getElementById("enrichScopeSelect"),
+  enrichApiKeyInput: document.getElementById("enrichApiKeyInput"),
+  runApiEnrichBtn: document.getElementById("runApiEnrichBtn"),
+  apiEnrichStatus: document.getElementById("apiEnrichStatus"),
   toast: document.getElementById("toast")
 };
 
 // ==========================================
 // 1. SCHEMA AUTO-DETECTION & LINE EXTRACTORS
 // ==========================================
+
+const PIMA_CITY_MAP = {
+  TUC: "TUCSON",
+  TUCSON: "TUCSON",
+  PC: "PIMA COUNTY",
+  MAR: "MARANA",
+  OV: "ORO VALLEY",
+  SAH: "SAHUARITA",
+  GV: "GREEN VALLEY",
+  CAT: "CATALINA",
+  VAIL: "VAIL",
+  AJO: "AJO",
+  SELLS: "SELLS"
+};
+
+// Parcel -> Owner Name cache populated from Ownership.csv rows
+const pimaParcelOwnerMap = new Map();
+
+function splitCsvLine(line) {
+  const result = [];
+  let cur = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === "," && !inQuotes) {
+      result.push(cur);
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  result.push(cur);
+  return result;
+}
 
 function detectLineSchema(line) {
   const trimmed = line.trim();
@@ -117,6 +174,8 @@ function detectLineSchema(line) {
   if (upper.startsWith("ECONUNIT|LEADPARCEL|")) return "header_skip";
   if (upper.startsWith("PARCELNUMBER|PROPORTIONCOMPLETE|")) return "header_skip";
   if (upper.startsWith("PARCELNUMBER|SALEDATE_MMYYYY|")) return "header_skip";
+  if (upper.startsWith('"PARCEL","MAIL1","MAIL2"') || upper.startsWith("PARCEL,MAIL1,MAIL2")) return "header_skip";
+  if (upper.startsWith("REFNO,TAXYEAR,ACCOUNTNO,")) return "header_skip";
   if (upper.startsWith("NAME|MAILING ADDRESS") || upper.startsWith("NAME,MAILING ADDRESS")) return "header_skip";
 
   if (trimmed.includes("|")) {
@@ -129,15 +188,34 @@ function detectLineSchema(line) {
     if (parts.length === 44) {
       return "sales";
     }
-    // 3. Apartment_Master.txt vs Residential_Master.txt (both have 39 cols)
-    if (parts.length === 39) {
-      // Residential_Master has "CLASS R..." or proportion like "1.00" in col 2 (index 1)
-      if (/^\d+\.\d+$/.test(parts[1].trim()) || upper.includes("|CLASS ")) {
+    // 3. Apartment_Master.txt vs Residential_Master.txt (both have 39 cols, or 40 if complex name has a pipe)
+    if (parts.length === 39 || parts.length === 40) {
+      // Residential_Master has proportion like "1.00" in col 2 (index 1) or COMPLETE/INCOMPLETE in col 3 (index 2)
+      if (
+        parts.length === 39 &&
+        (/^\d+\.\d+$/.test(parts[1].trim()) || /^(COMPLETE|INCOMPLETE)$/i.test((parts[2] || "").trim()))
+      ) {
         return "residential";
       }
       return "apartment";
     }
     return "pipe";
+  }
+
+  // CSV-based Pima County schemas
+  if (trimmed.includes(",")) {
+    const csvParts = splitCsvLine(trimmed);
+    // 5. Ownership.csv (8 quoted CSV cols: Parcel, Mail1..Mail5, Zip, Zip4)
+    if (
+      csvParts.length === 8 &&
+      (trimmed.startsWith('"') || /^\d{5}$/.test((csvParts[6] || "").trim()))
+    ) {
+      return "pima_ownership";
+    }
+    // 6. PpNov26.csv (23 CSV cols: RefNo, TaxYear, AccountNo, ...)
+    if (csvParts.length === 23 && /^\d{4}$/.test((csvParts[1] || "").trim())) {
+      return "pima_ppnov26";
+    }
   }
 
   return "csv";
@@ -163,7 +241,7 @@ function formatAddressParts(street1, street2, city, state, zip, country) {
 
 /**
  * Extracts { Name, "Mailing address", "personal/home phone", email } from any line
- * across 2027_NOV_Redacted.txt, Apartment_Master.txt, Residential_Master.txt, and Sales_Affidavits.txt
+ * across all 6 Maricopa & Pima datasets
  */
 function parseLineToFourColumns(line, overrideFormat = "auto") {
   const schema = overrideFormat === "auto" ? detectLineSchema(line) : overrideFormat;
@@ -174,12 +252,15 @@ function parseLineToFourColumns(line, overrideFormat = "auto") {
   if (
     upper.startsWith("ECONUNIT|LEADPARCEL|") ||
     upper.startsWith("PARCELNUMBER|PROPORTIONCOMPLETE|") ||
-    upper.startsWith("PARCELNUMBER|SALEDATE_MMYYYY|")
+    upper.startsWith("PARCELNUMBER|SALEDATE_MMYYYY|") ||
+    upper.startsWith('"PARCEL","MAIL1","MAIL2"') ||
+    upper.startsWith("PARCEL,MAIL1,MAIL2") ||
+    upper.startsWith("REFNO,TAXYEAR,ACCOUNTNO,")
   ) {
     return null;
   }
 
-  const parts = line.includes("|") ? line.split("|") : line.split(",");
+  const parts = line.includes("|") ? line.split("|") : splitCsvLine(line);
 
   if (schema === "nov47") {
     // 2027_NOV_Redacted.txt
@@ -208,19 +289,20 @@ function parseLineToFourColumns(line, overrideFormat = "auto") {
   }
 
   if (schema === "apartment") {
-    // Apartment_Master.txt (39 cols)
+    // Apartment_Master.txt (39 cols, or 40 if complex name contains a pipe)
     // idx 29: Owner, idx 30: InCarOf, idx 31: Address1, idx 32: Address2, idx 33: City, idx 34: State, idx 35: Zip
-    const owner = (parts[29] || "").trim();
-    const inCareOf = (parts[30] || "").trim();
+    const shift = Math.max(0, parts.length - 39);
+    const owner = (parts[29 + shift] || "").trim();
+    const inCareOf = (parts[30 + shift] || "").trim();
     const complexName = (parts[2] || "").trim();
     const name = owner || inCareOf || complexName;
 
     const mailingAddress = formatAddressParts(
-      parts[31],
-      parts[32],
-      parts[33],
-      parts[34],
-      parts[35],
+      parts[31 + shift],
+      parts[32 + shift],
+      parts[33 + shift],
+      parts[34 + shift],
+      parts[35 + shift],
       ""
     );
 
@@ -286,6 +368,99 @@ function parseLineToFourColumns(line, overrideFormat = "auto") {
     };
   }
 
+  if (schema === "pima_ownership") {
+    // Ownership.csv (8 cols: Parcel, Mail1, Mail2, Mail3, Mail4, Mail5, Zip, Zip4)
+    const parcel = (parts[0] || "").trim();
+    const mailFields = [parts[1], parts[2], parts[3], parts[4], parts[5]]
+      .map((v) => (v || "").trim().replace(/\s+/g, " "))
+      .filter((v) => v && v !== ".");
+
+    if (mailFields.length === 0) return null;
+
+    const zip = (parts[6] || "").trim();
+    const zip4 = (parts[7] || "").trim();
+    const validZip = zip && zip !== "00000" ? (zip4 && zip4 !== "0000" ? `${zip}-${zip4}` : zip) : "";
+
+    let nameParts = [mailFields[0]];
+    let addrLines = [];
+
+    if (mailFields.length >= 3) {
+      const cityState = mailFields[mailFields.length - 1];
+      const street = mailFields[mailFields.length - 2];
+      const middle = mailFields.slice(1, mailFields.length - 2);
+
+      for (const mid of middle) {
+        if (/^(ATTN|C\/O|IN CARE OF)\b/i.test(mid) || /^\d/.test(mid) || /^PO BOX\b/i.test(mid)) {
+          addrLines.push(mid);
+        } else {
+          nameParts.push(mid);
+        }
+      }
+
+      addrLines.push(street);
+      addrLines.push(validZip ? `${cityState} ${validZip}` : cityState);
+    } else if (mailFields.length === 2) {
+      addrLines.push(validZip ? `${mailFields[1]} ${validZip}` : mailFields[1]);
+    } else if (validZip) {
+      addrLines.push(validZip);
+    }
+
+    const fullName = nameParts.join(" ");
+    if (parcel && fullName) {
+      pimaParcelOwnerMap.set(parcel, fullName);
+    }
+
+    return {
+      Name: fullName,
+      "Mailing address": addrLines.filter(Boolean).join(", "),
+      "personal/home phone": "",
+      email: ""
+    };
+  }
+
+  if (schema === "pima_ppnov26") {
+    // PpNov26.csv (23 cols: RefNo,TaxYear,AccountNo,AccountStreetNo,AccountDir,AccountStreetName,AccountSuiteNo,AccountCity,Owner,Parcel,...)
+    const accountNo = (parts[2] || "").trim();
+    const streetNo = (parts[3] || "").trim();
+    const streetDir = (parts[4] || "").trim();
+    const streetName = (parts[5] || "").trim();
+    const suiteNo = (parts[6] || "").trim();
+    const rawCity = (parts[7] || "").trim().toUpperCase();
+    const ownerId = (parts[8] || "").trim();
+    const parcel = (parts[9] || "").trim();
+
+    const resolvedOwner = parcel ? pimaParcelOwnerMap.get(parcel) : null;
+    const name = resolvedOwner
+      ? `${resolvedOwner} (Acct #${accountNo})`
+      : ownerId
+      ? `Owner #${ownerId}${accountNo ? ` (Acct #${accountNo})` : ""}${parcel ? ` [Parcel ${parcel}]` : ""}`
+      : accountNo
+      ? `Acct #${accountNo}`
+      : "";
+
+    const suiteFormatted = suiteNo
+      ? /^(STE|SUITE|UNIT|APT|#)/i.test(suiteNo)
+        ? suiteNo
+        : `STE ${suiteNo}`
+      : "";
+    const streetFull = [streetNo, streetDir, streetName, suiteFormatted]
+      .filter(Boolean)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const cityExpanded = PIMA_CITY_MAP[rawCity] || rawCity;
+    const cityState = cityExpanded ? `${cityExpanded}, AZ` : "AZ";
+    const mailingAddress = [streetFull, cityState].filter(Boolean).join(", ");
+
+    return {
+      Name: name,
+      "Mailing address": mailingAddress,
+      "personal/home phone": "",
+      email: ""
+    };
+  }
+
   // Fallback for generic 4-column pipe or CSV lines
   return {
     Name: (parts[0] || "").trim(),
@@ -302,8 +477,11 @@ function parseRawTextToRows(rawText, overrideFormat, dedupe) {
   const detectedTypes = new Set();
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    let line = lines[i];
     if (!line || !line.trim()) continue;
+    while (i + 1 < lines.length && lines[i + 1].trim().startsWith("|")) {
+      line = line.trimEnd() + lines[++i].trim();
+    }
 
     const schema = overrideFormat === "auto" ? detectLineSchema(line) : overrideFormat;
     if (schema === "empty" || schema === "header_skip") continue;
@@ -326,6 +504,8 @@ function parseRawTextToRows(rawText, overrideFormat, dedupe) {
     apartment: "Apartment_Master",
     residential: "Residential_Master",
     sales: "Sales_Affidavits",
+    pima_ownership: "Ownership.csv (Pima)",
+    pima_ppnov26: "PpNov26.csv (Pima)",
     pipe: "Pipe Data",
     csv: "CSV Data"
   };
@@ -534,7 +714,7 @@ function renderTableBody(visibleCols, filteredRows) {
     visibleCols.forEach((col) => {
       const td = document.createElement("td");
       const val = rowObj[col.key];
-      formatCellDisplay(td, val);
+      formatCellDisplay(td, val, rowObj, col.key);
 
       td.addEventListener("dblclick", () => {
         startCellInlineEdit(td, rowObj, col.key);
@@ -557,12 +737,45 @@ function renderTableBody(visibleCols, filteredRows) {
   els.nextPageBtn.disabled = state.currentPage >= totalPages;
 }
 
-function formatCellDisplay(td, val) {
+function buildContactLookupUrl(rowObj, colKey) {
+  const name = (rowObj?.Name || "").trim();
+  const addr = (rowObj?.["Mailing address"] || "").trim();
+  const targetTerm = colKey === "email" ? "email contact" : "phone number contact";
+  const q = [name, addr, targetTerm].filter(Boolean).join(" ");
+  return `https://www.google.com/search?q=${encodeURIComponent(q)}`;
+}
+
+function formatCellDisplay(td, val, rowObj = null, colKey = "") {
   td.className = "";
+  td.innerHTML = "";
   if (val === null || val === undefined || val === "") {
-    td.textContent = "—";
     td.classList.add("cell-null");
     td.title = "Empty (Double-click to enter value)";
+
+    if (rowObj && (colKey === "personal/home phone" || colKey === "email")) {
+      const wrap = document.createElement("div");
+      wrap.className = "cell-empty-wrap";
+
+      const dash = document.createElement("span");
+      dash.textContent = "—";
+      wrap.appendChild(dash);
+
+      const link = document.createElement("a");
+      link.className = "cell-lookup-link";
+      link.href = buildContactLookupUrl(rowObj, colKey);
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = "Lookup";
+      link.title = `Search ${colKey} for ${rowObj.Name || "this owner"}`;
+      link.addEventListener("click", (e) => e.stopPropagation());
+      link.addEventListener("dblclick", (e) => e.stopPropagation());
+      wrap.appendChild(link);
+
+      td.appendChild(wrap);
+      return;
+    }
+
+    td.textContent = "—";
     return;
   }
 
@@ -585,7 +798,7 @@ function startCellInlineEdit(td, rowObj, colKey) {
   const commit = () => {
     rowObj[colKey] = input.value;
     td.classList.remove("cell-editing");
-    formatCellDisplay(td, rowObj[colKey]);
+    formatCellDisplay(td, rowObj[colKey], rowObj, colKey);
     if (state.activeView === "csv") updateCsvPreview();
   };
 
@@ -876,12 +1089,14 @@ async function copyCsvToClipboard() {
 // ==========================================
 
 function getSelectedDatasetText(key) {
-  if (key === "all_4_malen") {
+  if (key === "all_6_malen" || key === "all_4_malen") {
     return [
       MALEN_DATA.nov_2027,
       MALEN_DATA.apartment_master,
       MALEN_DATA.residential_master,
-      MALEN_DATA.sales_affidavits
+      MALEN_DATA.sales_affidavits,
+      MALEN_DATA.pima_ownership,
+      MALEN_DATA.pima_ppnov26
     ]
       .filter(Boolean)
       .join("\n");
@@ -994,13 +1209,13 @@ function setupEventListeners() {
     els.rawInput.value = getSelectedDatasetText(key);
     els.formatOverrideSelect.value = "auto";
     els.exportFilename.value =
-      key === "all_4_malen" ? "Malen_All_4_Files_Formatted" : `${key}_Formatted`;
+      key === "all_6_malen" ? "Malen_All_6_Files_Formatted" : `${key}_Formatted`;
     runFormatPipeline();
   });
 
   els.loadDefaultSampleBtn.addEventListener("click", () => {
-    els.sampleSelect.value = "all_4_malen";
-    els.rawInput.value = getSelectedDatasetText("all_4_malen");
+    els.sampleSelect.value = "all_6_malen";
+    els.rawInput.value = getSelectedDatasetText("all_6_malen");
     els.formatOverrideSelect.value = "auto";
     runFormatPipeline();
   });
@@ -1136,10 +1351,246 @@ function setupEventListeners() {
     const next = html.getAttribute("data-theme") === "dark" ? "light" : "dark";
     html.setAttribute("data-theme", next);
   });
+
+  if (els.openEnrichModalBtn && els.enrichModal) {
+    els.openEnrichModalBtn.addEventListener("click", () => {
+      els.enrichModal.classList.remove("hidden");
+    });
+    els.closeEnrichModalBtn.addEventListener("click", () => {
+      els.enrichModal.classList.add("hidden");
+    });
+    els.enrichModal.addEventListener("click", (e) => {
+      if (e.target === els.enrichModal) {
+        els.enrichModal.classList.add("hidden");
+      }
+    });
+  }
+
+  if (els.browseMergeFileBtn && els.mergeContactFileInput) {
+    els.browseMergeFileBtn.addEventListener("click", () => els.mergeContactFileInput.click());
+    els.mergeContactFileInput.addEventListener("change", (e) => {
+      if (e.target.files.length > 0) {
+        mergeContactsFromFile(e.target.files[0]);
+      }
+    });
+  }
+
+  if (els.runApiEnrichBtn) {
+    els.runApiEnrichBtn.addEventListener("click", runApiContactEnrichment);
+  }
 }
 
-// Initialize with all 4 Malen datasets combined into the 4 columns
+// ==========================================
+// 7. CONTACT MERGE & API SKIP-TRACE ENRICHMENT
+// ==========================================
+
+function normalizeKey(str) {
+  return String(str || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+}
+
+async function mergeContactsFromFile(file) {
+  try {
+    els.mergeStatusText.textContent = `Reading ${file.name}...`;
+    const text = await file.text();
+    const lines = text.split(/\r?\n/).filter((l) => l.trim());
+    if (lines.length < 2) {
+      els.mergeStatusText.textContent = "File has no data rows.";
+      return;
+    }
+
+    const delim = lines[0].includes("|") ? "|" : lines[0].includes("\t") ? "\t" : ",";
+    const parseRow = (line) =>
+      delim === "," ? splitCsvLine(line) : line.split(delim).map((c) => c.trim());
+
+    const headers = parseRow(lines[0]).map((h) => h.trim().toLowerCase());
+    const findIdx = (patterns) => headers.findIndex((h) => patterns.some((p) => p.test(h)));
+
+    const nameIdx = findIdx([/name/, /owner/, /contact/, /full.?name/]);
+    const firstIdx = findIdx([/^first.?name/, /^fname/]);
+    const lastIdx = findIdx([/^last.?name/, /^lname/]);
+    const addrIdx = findIdx([/mail/, /address/, /street/]);
+    const phoneIdx = findIdx([/phone/, /mobile/, /cell/, /tel/, /wireless/]);
+    const emailIdx = findIdx([/email/, /e-mail/]);
+
+    if (phoneIdx === -1 && emailIdx === -1) {
+      els.mergeStatusText.textContent =
+        "Could not find a Phone or Email column in the uploaded file header.";
+      return;
+    }
+
+    const byName = new Map();
+    const byAddr = new Map();
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = parseRow(lines[i]);
+      const phone = phoneIdx !== -1 ? (cols[phoneIdx] || "").trim() : "";
+      const email = emailIdx !== -1 ? (cols[emailIdx] || "").trim() : "";
+      if (!phone && !email) continue;
+
+      let rawName = nameIdx !== -1 ? cols[nameIdx] || "" : "";
+      if (!rawName && (firstIdx !== -1 || lastIdx !== -1)) {
+        rawName = `${cols[lastIdx] || ""} ${cols[firstIdx] || ""}`.trim();
+      }
+      const rawAddr = addrIdx !== -1 ? cols[addrIdx] || "" : "";
+
+      const nKey = normalizeKey(rawName);
+      const aKey = normalizeKey(rawAddr.split(",")[0]);
+      if (nKey) byName.set(nKey, { phone, email });
+      if (aKey && aKey.length >= 6) byAddr.set(aKey, { phone, email });
+    }
+
+    let matched = 0;
+    for (const row of state.rows) {
+      const rNameKey = normalizeKey(row.Name);
+      const rStreetKey = normalizeKey((row["Mailing address"] || "").split(",")[0]);
+      const hit = byName.get(rNameKey) || (rStreetKey.length >= 6 ? byAddr.get(rStreetKey) : null);
+      if (hit) {
+        if (hit.phone && !row["personal/home phone"]) row["personal/home phone"] = hit.phone;
+        if (hit.email && !row.email) row.email = hit.email;
+        matched++;
+      }
+    }
+
+    renderAll();
+    els.mergeStatusText.textContent = `Merged phone/email into ${matched.toLocaleString()} matching rows!`;
+    showToast(`Merged contact details into ${matched.toLocaleString()} rows.`);
+  } catch (err) {
+    els.mergeStatusText.textContent = `Error reading file: ${err.message}`;
+  }
+}
+
+async function runApiContactEnrichment() {
+  const apiKey = (els.enrichApiKeyInput.value || "").trim();
+  const provider = els.enrichProviderSelect.value;
+  const scope = els.enrichScopeSelect.value;
+
+  if (!apiKey) {
+    els.apiEnrichStatus.textContent = "Please enter your API key first.";
+    return;
+  }
+
+  const filtered = getFilteredAndSortedRows();
+  let targets = [];
+  if (scope === "page") {
+    const pageSize = Number(state.pageSize) || 50;
+    const startIdx = (state.currentPage - 1) * pageSize;
+    targets = filtered.slice(startIdx, startIdx + pageSize);
+  } else {
+    const limit = Number(scope) || 25;
+    targets = filtered.filter((r) => !r["personal/home phone"] || !r.email).slice(0, limit);
+  }
+
+  if (targets.length === 0) {
+    els.apiEnrichStatus.textContent = "No rows need enrichment in the selected scope.";
+    return;
+  }
+
+  els.runApiEnrichBtn.disabled = true;
+  let updatedCount = 0;
+
+  try {
+    for (let i = 0; i < targets.length; i++) {
+      const row = targets[i];
+      els.apiEnrichStatus.textContent = `Enriching ${i + 1} / ${targets.length}: ${row.Name}...`;
+
+      if (provider === "pdl") {
+        const params = new URLSearchParams({
+          name: row.Name,
+          location: row["Mailing address"]
+        });
+        const res = await fetch(`https://api.peopledatalabs.com/v5/person/enrich?${params}`, {
+          headers: { "X-Api-Key": apiKey }
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const data = json.data || json;
+          const phone =
+            data.mobile_phone ||
+            (Array.isArray(data.phone_numbers) && data.phone_numbers[0]) ||
+            "";
+          const email =
+            data.personal_emails?.[0] ||
+            data.work_email ||
+            (Array.isArray(data.emails) && data.emails[0]?.address) ||
+            "";
+          if (phone || email) {
+            if (phone && !row["personal/home phone"]) row["personal/home phone"] = phone;
+            if (email && !row.email) row.email = email;
+            updatedCount++;
+          }
+        }
+      } else if (provider === "batchdata") {
+        const addrParts = (row["Mailing address"] || "").split(",").map((s) => s.trim());
+        const res = await fetch("https://api.batchdata.com/api/v1/property/skip-trace", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            requests: [
+              {
+                propertyAddress: {
+                  street: addrParts[0] || "",
+                  city: addrParts[1] || "",
+                  state: (addrParts[2] || "").split(" ")[0] || "AZ",
+                  zip: (addrParts[2] || "").split(" ")[1] || ""
+                }
+              }
+            ]
+          })
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const person = json?.results?.persons?.[0];
+          const phone = person?.phoneNumbers?.[0]?.number || "";
+          const email = person?.emails?.[0]?.email || "";
+          if (phone || email) {
+            if (phone && !row["personal/home phone"]) row["personal/home phone"] = phone;
+            if (email && !row.email) row.email = email;
+            updatedCount++;
+          }
+        }
+      } else if (provider === "apollo") {
+        const res = await fetch("https://api.apollo.io/v1/people/match", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Api-Key": apiKey
+          },
+          body: JSON.stringify({
+            name: row.Name,
+            address: row["Mailing address"]
+          })
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const person = json.person || {};
+          const phone = person.phone_numbers?.[0]?.sanitized_number || "";
+          const email = person.email || "";
+          if (phone || email) {
+            if (phone && !row["personal/home phone"]) row["personal/home phone"] = phone;
+            if (email && !row.email) row.email = email;
+            updatedCount++;
+          }
+        }
+      }
+    }
+
+    renderAll();
+    els.apiEnrichStatus.textContent = `Done! Populated phone/email for ${updatedCount} of ${targets.length} rows.`;
+    showToast(`Enriched ${updatedCount} rows with phone/email.`);
+  } catch (err) {
+    els.apiEnrichStatus.textContent = `API request failed: ${err.message}`;
+  } finally {
+    els.runApiEnrichBtn.disabled = false;
+  }
+}
+
+// Initialize with all 6 Malen & Pima datasets combined into the 4 columns
 setupEventListeners();
-els.sampleSelect.value = "all_4_malen";
-els.rawInput.value = getSelectedDatasetText("all_4_malen");
+els.sampleSelect.value = "all_6_malen";
+els.rawInput.value = getSelectedDatasetText("all_6_malen");
 runFormatPipeline();
