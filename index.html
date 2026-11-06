@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Data Formatter & CSV Studio — Malen Datasets</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="3" y1="9" x2="21" y2="9"></line>
+            <line x1="3" y1="15" x2="21" y2="15"></line>
+            <line x1="9" y1="9" x2="9" y2="21"></line>
+            <line x1="15" y1="9" x2="15" y2="21"></line>
+          </svg>
+        </div>
+        <div>
+          <h1>Data Formatter &amp; CSV Studio</h1>
+          <p class="subtitle">Displaying: <strong>Name, Mailing address, personal/home phone, email</strong> across all 4 Malen files</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <div class="sample-dropdown">
+          <label for="sampleSelect" class="sr-only">Select Dataset</label>
+          <select id="sampleSelect" class="select-control" title="Switch between the 4 Malen files">
+            <option value="all_4_malen" selected>All 4 Files Combined (2027_NOV + Apartment + Residential + Sales)</option>
+            <option value="nov_2027">1. 2027_NOV_Redacted.txt (Notice of Valuation)</option>
+            <option value="apartment_master">2. Apartment_Master.txt (Full 3,330 Rows)</option>
+            <option value="residential_master">3. Residential_Master.txt (Residential Master)</option>
+            <option value="sales_affidavits">4. Sales_Affidavits.txt (Sales Affidavits)</option>
+          </select>
+        </div>
+
+        <button id="themeToggleBtn" class="btn btn-icon" title="Toggle Dark/Light Theme" aria-label="Toggle Theme">
+          <svg id="themeIconDark" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <main class="workspace">
+      <!-- Left / Collapsible Input Panel -->
+      <section class="panel input-panel" id="inputPanel">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <h2>1. Raw Input</h2>
+            <span id="detectedFormatBadge" class="badge badge-accent">All 4 Malen Files</span>
+          </div>
+          <div class="panel-header-actions">
+            <select id="formatOverrideSelect" class="select-control select-sm" title="Input Format">
+              <option value="auto">Format: Auto-Detect</option>
+              <option value="nov47">2027_NOV_Redacted (47-Col)</option>
+              <option value="apartment">Apartment_Master (39-Col)</option>
+              <option value="residential">Residential_Master (39-Col)</option>
+              <option value="sales">Sales_Affidavits (44-Col)</option>
+              <option value="pipe">Generic Pipe (|)</option>
+              <option value="csv">CSV (,)</option>
+            </select>
+            <button id="clearInputBtn" class="btn btn-ghost btn-sm" title="Clear input">Clear</button>
+          </div>
+        </div>
+
+        <!-- Drag & Drop / Multi-File Upload Bar -->
+        <div class="dropzone" id="dropzone">
+          <input type="file" id="fileInput" accept=".txt,.csv,.tsv,.json,.md,.log" multiple hidden />
+          <div class="dropzone-content">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            <span>Drop one or all 4 <strong>.txt</strong> files here or <button type="button" id="browseFileBtn" class="link-btn">browse files</button></span>
+          </div>
+        </div>
+
+        <!-- Large File Streaming Status Banner -->
+        <div id="largeFileBanner" class="large-file-banner hidden">
+          <div class="lf-info">
+            <strong id="lfName">Selected Files</strong>
+            <span id="lfSize" class="lf-meta">Large File Mode</span>
+          </div>
+          <div class="lf-controls">
+            <label for="previewRowLimit">Preview per file:</label>
+            <select id="previewRowLimit" class="select-control select-sm">
+              <option value="1000">1,000 rows</option>
+              <option value="5000" selected>5,000 rows</option>
+              <option value="15000">15,000 rows</option>
+              <option value="50000">50,000 rows</option>
+            </select>
+            <button type="button" id="streamFullCsvBtn" class="btn btn-success btn-sm" title="Stream-convert the entire selected file(s) to CSV">
+              Stream Full File(s) &rarr; CSV
+            </button>
+          </div>
+          <div id="streamProgressWrap" class="stream-progress-wrap hidden">
+            <div class="progress-bar-bg">
+              <div id="streamProgressBar" class="progress-bar-fill" style="width: 0%"></div>
+            </div>
+            <span id="streamProgressText" class="stream-progress-text">0%</span>
+          </div>
+        </div>
+
+        <!-- Textarea Input -->
+        <div class="editor-wrapper">
+          <textarea
+            id="rawInput"
+            placeholder="Paste raw lines from 2027_NOV_Redacted.txt, Apartment_Master.txt, Residential_Master.txt, or Sales_Affidavits.txt..."
+            spellcheck="false"
+          ></textarea>
+        </div>
+
+        <!-- Parsing & Formatting Options -->
+        <div class="input-footer">
+          <div class="parse-options">
+            <label class="checkbox-label" title="Automatically trim leading and trailing whitespace from values">
+              <input type="checkbox" id="trimValuesCheck" checked />
+              <span>Trim whitespace</span>
+            </label>
+            <label class="checkbox-label" title="Remove duplicate Name + Mailing address rows automatically">
+              <input type="checkbox" id="dedupeOnParseCheck" />
+              <span>Deduplicate owners</span>
+            </label>
+          </div>
+          <button id="formatDataBtn" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            Format Data
+          </button>
+        </div>
+      </section>
+
+      <!-- Right / Main Table & Export Panel -->
+      <section class="panel output-panel">
+        <!-- Output Header & Export Bar -->
+        <div class="panel-header output-header">
+          <div class="panel-title-group">
+            <button id="toggleInputPanelBtn" class="btn btn-icon btn-sm" title="Toggle Raw Input Panel (Expand Table)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                <line x1="9" y1="3" x2="9" y2="21"></line>
+              </svg>
+            </button>
+            <h2>2. Formatted Output</h2>
+            <div class="stats-pills" id="statsPills">
+              <span class="stat-pill"><strong id="rowCountStat">0</strong> rows</span>
+              <span class="stat-pill"><strong id="colCountStat">4</strong> cols</span>
+            </div>
+          </div>
+
+          <!-- Primary Export Controls -->
+          <div class="export-controls">
+            <div class="view-tabs" role="tablist">
+              <button class="tab-btn active" data-view="table" role="tab">Table View</button>
+              <button class="tab-btn" data-view="csv" role="tab">CSV Preview</button>
+            </div>
+
+            <div class="export-group">
+              <button id="copyCsvBtn" class="btn btn-secondary" title="Copy formatted CSV to clipboard">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                <span>Copy CSV</span>
+              </button>
+
+              <div class="split-btn-group">
+                <button id="exportCsvBtn" class="btn btn-success">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                  <span>Export CSV</span>
+                </button>
+                <button id="csvOptionsBtn" class="btn btn-success split-trigger" title="CSV Export Settings" aria-label="CSV Export Settings">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+
+                <!-- CSV Export Options Popover -->
+                <div id="csvOptionsPopover" class="popover hidden">
+                  <div class="popover-title">CSV Export Options</div>
+                  <div class="form-group">
+                    <label for="exportFilename">File Name</label>
+                    <div class="input-suffix-group">
+                      <input type="text" id="exportFilename" value="Malen_Formatted_Contacts" class="input-control input-sm" />
+                      <span class="suffix">.csv</span>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label for="exportDelimiter">Delimiter</label>
+                    <select id="exportDelimiter" class="select-control select-sm">
+                      <option value=",">Comma (,)</option>
+                      <option value=";">Semicolon (;)</option>
+                      <option value="&#9;">Tab (\t)</option>
+                      <option value="|">Pipe (|)</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label class="checkbox-label">
+                      <input type="checkbox" id="exportFilteredOnly" checked />
+                      <span>Export only filtered rows &amp; visible columns</span>
+                    </label>
+                  </div>
+                  <div class="form-group">
+                    <label class="checkbox-label">
+                      <input type="checkbox" id="exportIncludeHeaders" checked />
+                      <span>Include column headers</span>
+                    </label>
+                  </div>
+                  <div class="form-group">
+                    <label class="checkbox-label">
+                      <input type="checkbox" id="exportQuoteAll" />
+                      <span>Force quotes around all values</span>
+                    </label>
+                  </div>
+                  <div class="form-group">
+                    <label class="checkbox-label" title="Adds UTF-8 BOM so Microsoft Excel opens special characters properly">
+                      <input type="checkbox" id="exportBom" checked />
+                      <span>Excel compatible (UTF-8 BOM)</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Table Toolbar: Search, Dataset Pills, Column Filters -->
+        <div class="table-toolbar">
+          <div class="search-box">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="globalSearchInput" placeholder="Search by Name, Mailing address, phone, or email..." />
+            <button id="clearSearchBtn" class="clear-search hidden" title="Clear search">&times;</button>
+          </div>
+
+          <div class="toolbar-actions">
+            <button id="dedupeBtn" class="btn btn-ghost btn-sm" title="Remove duplicate Name + Mailing address rows">
+              <span>Remove Duplicates</span>
+            </button>
+
+            <button id="toggleColFiltersBtn" class="btn btn-ghost btn-sm" title="Toggle per-column filter inputs">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+              </svg>
+              <span>Column Filters</span>
+            </button>
+
+            <!-- Columns Visibility Menu -->
+            <div class="dropdown-wrapper">
+              <button id="columnsMenuBtn" class="btn btn-ghost btn-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 3h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7m0-18H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7m0-18v18"></path>
+                </svg>
+                <span>Columns</span>
+              </button>
+              <div id="columnsPopover" class="popover hidden">
+                <div class="popover-header-row">
+                  <span class="popover-title">Visible Columns</span>
+                  <div class="mini-links">
+                    <button type="button" id="showAllColsBtn" class="link-btn">All</button>
+                    <span>/</span>
+                    <button type="button" id="hideAllColsBtn" class="link-btn">None</button>
+                  </div>
+                </div>
+                <div id="columnChecklist" class="checklist-scroll"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main View Area: Interactive Table -->
+        <div id="tableViewContainer" class="view-container">
+          <div class="table-scroll" id="tableScroll">
+            <table class="data-table" id="dataTable">
+              <thead id="tableHead"></thead>
+              <tbody id="tableBody"></tbody>
+            </table>
+
+            <!-- Empty State -->
+            <div id="emptyState" class="empty-state hidden">
+              <div class="empty-icon">
+                <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="16" y1="13" x2="8" y2="13"></line>
+                  <line x1="16" y1="17" x2="8" y2="17"></line>
+                  <polyline points="10 9 9 9 8 9"></polyline>
+                </svg>
+              </div>
+              <h3>No Data Loaded</h3>
+              <p>Drop your <strong>.txt</strong> files or click below to load all 4 preloaded Malen datasets.</p>
+              <div class="empty-actions">
+                <button type="button" class="btn btn-primary" id="loadDefaultSampleBtn">Load All 4 Malen Datasets</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pagination & Status Footer -->
+          <div class="table-footer">
+            <div class="footer-info">
+              <span id="showingInfo">Showing 0 to 0 of 0 rows</span>
+              <span class="hint-text">Tip: Double-click any cell (including phone or email) to edit inline before exporting to CSV</span>
+            </div>
+            <div class="pagination-controls">
+              <label for="pageSizeSelect">Rows per page:</label>
+              <select id="pageSizeSelect" class="select-control select-sm">
+                <option value="25">25</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+                <option value="250">250</option>
+                <option value="500">500</option>
+              </select>
+              <div class="page-buttons">
+                <button id="prevPageBtn" class="btn btn-ghost btn-sm" disabled>&larr; Prev</button>
+                <span id="pageIndicator" class="page-indicator">Page 1 of 1</span>
+                <button id="nextPageBtn" class="btn btn-ghost btn-sm" disabled>Next &rarr;</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Alternate View Area: Live CSV Preview -->
+        <div id="csvViewContainer" class="view-container hidden">
+          <div class="csv-preview-wrapper">
+            <textarea id="csvPreviewOutput" readonly spellcheck="false"></textarea>
+          </div>
+          <div class="table-footer">
+            <div class="footer-info">
+              <span id="csvPreviewInfo">Live preview of the generated CSV output (first 500 rows shown for performance)</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+  </div>
+
+  <script src="nov_sample_data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
